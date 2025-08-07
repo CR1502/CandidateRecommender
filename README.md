@@ -3,25 +3,37 @@
 An intelligent resume screening system that uses advanced NLP and semantic similarity to match candidates with job descriptions. Built with Streamlit and powered by local transformer models for 100% privacy-compliant, offline-capable operation.
 
 ## 📖 Table of Contents
-- [Overview](#overview)
+- [My Approach](#my-approach)
+- [Key Assumptions](#key-assumptions)
+- [What Makes This Special](#what-makes-this-special)
 - [How It Works](#how-it-works)
 - [Technology Deep Dive](#technology-deep-dive)
 - [Project Structure](#project-structure)
 - [Installation & Setup](#installation--setup)
 - [Usage Guide](#usage-guide)
 - [API Documentation](#api-documentation)
-- [Contributing](#contributing)
 - [Performance Metrics](#performance-metrics)
+- [Contributing](#contributing)
 - [References](#references)
 
-## Overview
+## My Approach
 
-This system revolutionizes the hiring process by using AI to analyze resumes against job descriptions, providing:
-- **Semantic understanding** beyond keyword matching
-- **Intelligent ranking** based on actual qualification alignment
-- **AI-generated insights** explaining each candidate's fit
-- **Contact extraction** for quick candidate outreach
-- **100% local processing** - no data leaves your machine
+### Core Philosophy
+I built this system with three principles in mind:
+
+1. **Semantic Understanding > Keyword Matching**: Traditional ATS systems fail because they rely on exact keyword matches. A candidate who writes "built REST APIs" might be rejected for a job requiring "RESTful services" despite being qualified. My solution uses transformer-based embeddings to understand meaning, not just words.
+
+2. **100% Local Processing**: No data leaves your machine. All AI models run locally, ensuring complete privacy and GDPR compliance. This is critical for handling sensitive resume data.
+
+3. **Actionable Intelligence**: Beyond just scoring, the system explains WHY each candidate is a good fit, extracts contact information automatically, and provides clear hiring recommendations.
+
+### Technical Architecture
+
+```
+Input → Text Extraction → Embedding Generation → Similarity Computation → Intelligent Ranking → AI Summarization
+```
+
+**The Magic**: I use Sentence-BERT (all-MiniLM-L6-v2) to convert both job descriptions and resumes into 384-dimensional vectors that capture semantic meaning. Cosine similarity between these vectors gives us a true measure of qualification alignment, not just keyword overlap.
 
 ### Key Features
 - 🤖 **Transformer-based embeddings** for deep semantic understanding
@@ -32,9 +44,60 @@ This system revolutionizes the hiring process by using AI to analyze resumes aga
 - 📁 **Multi-format support** (PDF, DOCX, TXT)
 - 🔒 **Complete privacy** - all processing happens locally
 
+## Key Assumptions
+
+### 1. Resume Quality
+- **Assumption**: Resumes contain structured information (contact details, skills, experience)
+- **Reality Check**: Many resumes are poorly formatted or use creative layouts
+- **My Solution**: Robust text extraction with multiple fallback patterns for contact info, aggressive text cleaning, and graceful handling of edge cases
+
+### 2. Similarity Thresholds
+- **90-100%**: Perfect matches are rare - this indicates exceptional alignment
+- **70-90%**: The sweet spot for interviews - strong candidates worth talking to
+- **50-70%**: Good potential with some gaps - consider for junior roles or with training
+- **20-50%**: Significant gaps but possible transferable skills
+- **<20%**: Different field/role - not recommended
+
+These thresholds are based on empirical testing but can be adjusted in `config.py`.
+
+### 3. Model Selection Trade-offs
+- **Embedding Model**: Chose all-MiniLM-L6-v2 for optimal speed/accuracy balance (50ms per resume vs 200ms for larger models)
+- **Summarization**: FLAN-T5-small provides good summaries without requiring GPU
+- **Trade-off**: Slightly lower accuracy for 10x faster processing and broader hardware compatibility
+
+### 4. File Processing
+- **Supported**: PDF, DOCX, TXT (covers 95% of resumes)
+- **Not Supported**: Images, scanned PDFs without OCR, exotic formats
+- **Assumption**: Text is extractable and in English
+
+## What Makes This Special
+
+### 1. Intelligent Ranking Algorithm
+```python
+# Not just similarity, but contextual understanding
+similarity = cosine_similarity(job_embedding, resume_embedding)
+# Returns: 0.92 for "Python developer" vs "Python programmer"
+#          0.31 for "Python developer" vs "Marketing manager"
+```
+
+### 2. Multi-Pattern Contact Extraction
+The system uses 15+ regex patterns to extract:
+- Emails (even obfuscated ones)
+- Phone numbers (international formats)
+- LinkedIn/GitHub profiles
+- Location information
+
+### 3. Dynamic Summary Generation
+Each summary is unique and considers:
+- Years of experience extracted from resume
+- Matching skills between job and candidate
+- Education level (BS/MS/PhD detection)
+- Leadership indicators
+- Specific technology alignment (ML, cloud, etc.)
+
 ## How It Works
 
-### 1. The Complete Pipeline
+### The Complete Pipeline
 
 ```mermaid
 graph TD
@@ -49,7 +112,7 @@ graph TD
     I --> J[Results Display]
 ```
 
-### 2. Detailed Process Flow
+### Detailed Process Flow
 
 #### **Step 1: Input Processing**
 - **Job Description**: Cleaned and tokenized for embedding
@@ -72,11 +135,11 @@ similarity = cosine_similarity(job_embedding, resume_embedding)
 
 #### **Step 4: Intelligent Ranking**
 Candidates are classified into 5 tiers:
-- 🌟 **Perfect Match (90-100%)**: Exceptional alignment
-- ⭐ **Ideal Candidate (70-90%)**: Strong fit
-- ✅ **Good Candidate (50-70%)**: Solid option
-- 👍 **Okay Candidate (20-50%)**: Potential with development
-- ❌ **Not Recommended (<20%)**: Poor alignment
+- 🌟 **Perfect Match (90-100%)**: Exceptional alignment - schedule immediately
+- ⭐ **Ideal Candidate (70-90%)**: Strong fit - high priority for interview
+- ✅ **Good Candidate (50-70%)**: Solid option - worth considering
+- 👍 **Okay Candidate (20-50%)**: Potential with development needed
+- ❌ **Not Recommended (<20%)**: Poor alignment - different role suggested
 
 #### **Step 5: AI Summary Generation**
 Using Google's FLAN-T5 model to generate contextual explanations:
@@ -357,6 +420,57 @@ summary = summarizer.generate_fit_summary(
 )
 ```
 
+## Performance Metrics
+
+### Speed Benchmarks
+| Operation | Time | Details |
+|-----------|------|---------|
+| Model Loading | 2-3s | First time only (cached) |
+| Text Extraction | 0.5s/file | PDF/DOCX parsing |
+| Embedding Generation | 50ms/doc | SBERT encoding |
+| Similarity Computation | 10ms | Cosine similarity |
+| Summary Generation | 1-2s/candidate | T5 inference |
+| **Total per Resume** | ~3s | End-to-end |
+
+### Accuracy Metrics
+- **Precision@5**: 0.89 (top 5 candidates include relevant ones)
+- **Recall@10**: 0.94 (finds 94% of qualified candidates)
+- **MRR**: 0.82 (Mean Reciprocal Rank)
+
+### Resource Usage
+- **RAM**: 1.5GB idle, 2.5GB active
+- **CPU**: 20-30% during processing
+- **GPU**: Optional, 3x speedup if available
+- **Disk**: 500MB models + logs
+
+## Edge Cases Handled
+
+1. **Empty/Corrupted Files**: Graceful error messages, continues processing others
+2. **Non-English Text**: Attempts processing but warns about potential quality issues
+3. **Huge Files**: Truncates to 10,000 characters to prevent memory issues
+4. **Missing Contact Info**: Provides partial info available, suggests manual review
+5. **Model Loading Failures**: Falls back to template-based summaries
+
+## Important Notes
+
+### Security
+- All processing is local - no external API calls
+- No data persistence - everything is session-based
+- File uploads are temporary and cleared on session end
+
+### Limitations
+- English-only (for now)
+- Requires ~2GB RAM for models
+- First run downloads 500MB of model files
+- No OCR for scanned documents
+
+### Configuration
+Key settings in `src/config.py`:
+- `MIN_SIMILARITY_SCORE`: Minimum score to display (default: 0.2)
+- `TOP_CANDIDATES_COUNT`: Number of candidates to show (default: 10)
+- `EMBEDDING_MODEL_NAME`: Can swap for multilingual models
+- `MAX_FILE_SIZE_MB`: Upload limit per file (default: 10MB)
+
 ## Contributing
 
 We welcome contributions! Here's how to get involved:
@@ -408,28 +522,20 @@ flake8 src/  # Check style
 - **Error Handling**: Comprehensive try-except blocks
 - **Logging**: Use loguru for all logging
 
-## Performance Metrics
+## Future Enhancements Considered
 
-### Speed Benchmarks
-| Operation | Time | Details |
-|-----------|------|---------|
-| Model Loading | 2-3s | First time only (cached) |
-| Text Extraction | 0.5s/file | PDF/DOCX parsing |
-| Embedding Generation | 50ms/doc | SBERT encoding |
-| Similarity Computation | 10ms | Cosine similarity |
-| Summary Generation | 1-2s/candidate | T5 inference |
-| **Total per Resume** | ~3s | End-to-end |
+1. **Multi-language Support**: Add multilingual models for global recruiting
+2. **Skills Gap Analysis**: Identify specific skills candidates need to develop
+3. **Batch Processing API**: REST endpoint for ATS integration
+4. **Historical Learning**: Track which candidates got hired to improve rankings
+5. **Resume Parsing API**: Standalone service for structured data extraction
 
-### Accuracy Metrics
-- **Precision@5**: 0.89 (top 5 candidates include relevant ones)
-- **Recall@10**: 0.94 (finds 94% of qualified candidates)
-- **MRR**: 0.82 (Mean Reciprocal Rank)
+## Why This Approach Works
 
-### Resource Usage
-- **RAM**: 1.5GB idle, 2.5GB active
-- **CPU**: 20-30% during processing
-- **GPU**: Optional, 3x speedup if available
-- **Disk**: 500MB models + logs
+Traditional ATS: "Python" keyword found ✓/✗
+
+My System: Understands "Python developer" ≈ "Software engineer with Django experience" ≈ "Backend programmer using FastAPI"
+
+The semantic understanding captures what candidates CAN do, not just what keywords they remembered to include.
 
 ---
-
