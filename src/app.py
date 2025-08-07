@@ -20,6 +20,7 @@ from core.text_cleaner import TextCleaner
 from core.embeddings import EmbeddingEngine
 from core.summarizer import CandidateSummarizer
 
+
 # Configure Streamlit page
 st.set_page_config(
     page_title=PAGE_TITLE,
@@ -51,51 +52,51 @@ def load_models():
 
 
 def process_candidates(
-        job_description: str,
-        uploaded_files: List[Any],
-        embedding_engine: EmbeddingEngine,
-        summarizer: CandidateSummarizer
+    job_description: str,
+    uploaded_files: List[Any],
+    embedding_engine: EmbeddingEngine,
+    summarizer: CandidateSummarizer
 ) -> Dict[str, Any]:
     """
     Process candidates and generate recommendations.
-
+    
     Args:
         job_description: Job description text
         uploaded_files: List of uploaded file objects
         embedding_engine: Embedding engine instance
         summarizer: Summarizer instance
-
+        
     Returns:
         Dictionary with results
     """
     # Initialize processors
     file_processor = FileProcessor(MAX_FILE_SIZE_MB)
     text_cleaner = TextCleaner()
-
+    
     # Process files
     progress_bar = st.progress(0)
     status_text = st.empty()
-
+    
     # Step 1: Extract text from files
     status_text.text("📄 Processing resume files...")
     processed_resumes = []
-
+    
     for i, file in enumerate(uploaded_files):
         progress_bar.progress((i + 1) / len(uploaded_files) * 0.3)
-
+        
         # Validate file
         is_valid, error_msg = file_processor.validate_file(file, file.name)
         if not is_valid:
             st.warning(f"⚠️ {file.name}: {error_msg}")
             continue
-
+        
         try:
             # Process file
             text, candidate_name = file_processor.process_file(file, file.name)
-
+            
             # Clean text
             cleaned_text = text_cleaner.prepare_for_embedding(text)
-
+            
             if text_cleaner.validate_text(cleaned_text):
                 processed_resumes.append({
                     'filename': file.name,
@@ -104,44 +105,44 @@ def process_candidates(
                 })
             else:
                 st.warning(f"⚠️ {file.name}: Text too short or invalid")
-
+                
         except Exception as e:
             st.warning(f"⚠️ Error processing {file.name}: {str(e)}")
-
+    
     if not processed_resumes:
         st.error("No valid resumes could be processed.")
         return None
-
+    
     # Step 2: Rank candidates
     progress_bar.progress(0.5)
     status_text.text("🤖 Analyzing candidates with AI...")
-
+    
     try:
         # Clean job description
         cleaned_job_desc = text_cleaner.prepare_for_embedding(job_description)
-
+        
         # Rank candidates
         ranked_candidates = embedding_engine.rank_candidates(
             cleaned_job_desc,
             processed_resumes,
             TOP_CANDIDATES_COUNT
         )
-
+        
         # Extract matching skills for each candidate
         for candidate in ranked_candidates:
             candidate['matching_skills'] = embedding_engine.find_matching_skills(
                 cleaned_job_desc,
                 candidate['text']
             )
-
+        
     except Exception as e:
         st.error(f"Error ranking candidates: {str(e)}")
         return None
-
+    
     # Step 3: Generate summaries
     progress_bar.progress(0.8)
     status_text.text("✍️ Generating fit summaries...")
-
+    
     try:
         ranked_candidates = summarizer.batch_generate_summaries(
             ranked_candidates,
@@ -150,14 +151,14 @@ def process_candidates(
     except Exception as e:
         logger.warning(f"Summary generation failed: {e}")
         # Continue without summaries
-
+    
     # Complete
     progress_bar.progress(1.0)
     status_text.text("✅ Analysis complete!")
     time.sleep(0.5)
     progress_bar.empty()
     status_text.empty()
-
+    
     return {
         'candidates': ranked_candidates,
         'total_processed': len(processed_resumes),
@@ -167,69 +168,136 @@ def process_candidates(
 
 def display_results(results: Dict[str, Any]) -> None:
     """
-    Display recommendation results.
-
+    Display recommendation results with category classifications.
+    
     Args:
         results: Results dictionary from process_candidates
     """
     st.success(f"✅ Analyzed {results['total_processed']} resumes successfully!")
-
+    
     # Display top candidates
-    st.markdown("## 🏆 Top Candidate Recommendations")
-
+    st.markdown("## 🏆 Candidate Recommendations")
+    
     candidates = results['candidates']
-
-    for i, candidate in enumerate(candidates):
-        # Create expandable card for each candidate
-        with st.expander(
-                f"**#{candidate['rank']} - {candidate['candidate_name']}** "
-                f"(Match: {candidate['percentage_score']:.1f}%)",
-                expanded=(i < 3)  # Expand top 3 by default
-        ):
-            # Display metrics
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                st.metric("Match Score", f"{candidate['percentage_score']:.1f}%")
-            with col2:
-                st.metric("Rank", f"#{candidate['rank']}")
-            with col3:
-                st.metric("Source", candidate['filename'][:20] + "...")
-
-            # Display fit summary
-            st.markdown("### 📝 Why This Candidate is a Great Fit")
-            st.info(candidate.get('fit_summary', 'Summary not available'))
-
-            # Display matching skills
-            if candidate.get('matching_skills'):
-                st.markdown("### 🎯 Matching Skills")
-                skills_cols = st.columns(5)
-                for idx, skill in enumerate(candidate['matching_skills'][:10]):
-                    with skills_cols[idx % 5]:
-                        st.badge(skill)
-
-            # Add action buttons
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button(f"📧 Contact", key=f"contact_{i}"):
-                    st.info("Contact feature coming soon!")
-            with col2:
-                if st.button(f"📄 View Full Resume", key=f"view_{i}"):
-                    with st.container():
-                        st.text_area(
-                            "Resume Content",
-                            candidate['text'][:1000] + "...",
-                            height=200,
-                            key=f"resume_text_{i}"
-                        )
+    
+    # Filter out "Not Recommended" candidates unless explicitly shown
+    show_not_recommended = st.checkbox("Show 'Not Recommended' candidates (below 20%)", value=False)
+    
+    if not show_not_recommended:
+        candidates = [c for c in candidates if c['percentage_score'] >= 20]
+    
+    if not candidates:
+        st.warning("No candidates meet the minimum threshold. Try adjusting your requirements or check 'Show Not Recommended' above.")
+        return
+    
+    # Group candidates by category
+    perfect_matches = [c for c in candidates if c['percentage_score'] >= 90]
+    ideal_candidates = [c for c in candidates if 70 <= c['percentage_score'] < 90]
+    good_candidates = [c for c in candidates if 50 <= c['percentage_score'] < 70]
+    okay_candidates = [c for c in candidates if 20 <= c['percentage_score'] < 50]
+    not_recommended = [c for c in candidates if c['percentage_score'] < 20]
+    
+    # Display category summary
+    col1, col2, col3, col4, col5 = st.columns(5)
+    with col1:
+        st.metric("🌟 Perfect", len(perfect_matches))
+    with col2:
+        st.metric("⭐ Ideal", len(ideal_candidates))
+    with col3:
+        st.metric("✅ Good", len(good_candidates))
+    with col4:
+        st.metric("👍 Okay", len(okay_candidates))
+    with col5:
+        if show_not_recommended:
+            st.metric("❌ Not Rec.", len(not_recommended))
+    
+    st.markdown("---")
+    
+    # Display candidates by category
+    for category_name, category_candidates, expanded_default in [
+        ("🌟 Perfect Matches (90-100%)", perfect_matches, True),
+        ("⭐ Ideal Candidates (70-90%)", ideal_candidates, True),
+        ("✅ Good Candidates (50-70%)", good_candidates, False),
+        ("👍 Okay Candidates (20-50%)", okay_candidates, False),
+        ("❌ Not Recommended (<20%)", not_recommended, False)
+    ]:
+        if category_candidates and (show_not_recommended or "Not Recommended" not in category_name):
+            st.markdown(f"### {category_name}")
+            
+            for i, candidate in enumerate(category_candidates):
+                # Color-coded expander based on category
+                category_color = candidate.get('category_color', '#808080')
+                
+                with st.expander(
+                    f"{candidate['category_emoji']} **{candidate['candidate_name']}** "
+                    f"(Match: {candidate['percentage_score']:.1f}%)",
+                    expanded=(expanded_default and i < 2)  # Expand first 2 in top categories
+                ):
+                    # Display metrics with color coding
+                    col1, col2, col3, col4 = st.columns(4)
+                    with col1:
+                        st.metric("Match Score", f"{candidate['percentage_score']:.1f}%")
+                    with col2:
+                        st.metric("Category", candidate['category'])
+                    with col3:
+                        st.metric("Rank", f"#{candidate['rank']}")
+                    with col4:
+                        st.metric("Source", candidate['filename'][:15] + "...")
+                    
+                    # Category-specific styling for summary
+                    st.markdown("### 📝 Assessment")
+                    
+                    # Color-code the info box based on category
+                    if candidate['percentage_score'] >= 90:
+                        st.success(candidate.get('fit_summary', 'Summary not available'))
+                    elif candidate['percentage_score'] >= 70:
+                        st.info(candidate.get('fit_summary', 'Summary not available'))
+                    elif candidate['percentage_score'] >= 50:
+                        st.warning(candidate.get('fit_summary', 'Summary not available'))
+                    else:
+                        st.error(candidate.get('fit_summary', 'Summary not available'))
+                    
+                    # Display matching skills
+                    if candidate.get('matching_skills'):
+                        st.markdown("### 🎯 Matching Skills")
+                        skills_cols = st.columns(5)
+                        for idx, skill in enumerate(candidate['matching_skills'][:10]):
+                            with skills_cols[idx % 5]:
+                                st.badge(skill)
+                    
+                    # Add action buttons based on category
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        if candidate['percentage_score'] >= 70:
+                            if st.button(f"📅 Schedule Interview", key=f"interview_{candidate['candidate_name']}_{i}", type="primary"):
+                                st.success("Interview scheduling feature coming soon!")
+                        else:
+                            if st.button(f"📧 Contact", key=f"contact_{candidate['candidate_name']}_{i}"):
+                                st.info("Contact feature coming soon!")
+                    with col2:
+                        if st.button(f"📄 View Resume", key=f"view_{candidate['candidate_name']}_{i}"):
+                            with st.container():
+                                st.text_area(
+                                    "Resume Content",
+                                    candidate['text'][:1000] + "...",
+                                    height=200,
+                                    key=f"resume_text_{candidate['candidate_name']}_{i}"
+                                )
+                    with col3:
+                        if candidate['percentage_score'] >= 50:
+                            if st.button(f"⭐ Add to Shortlist", key=f"shortlist_{candidate['candidate_name']}_{i}"):
+                                st.success("Added to shortlist!")
+            
+            st.markdown("")  # Add spacing between categories
 
 
 def export_results(results: Dict[str, Any]) -> pd.DataFrame:
     """
     Export results to DataFrame.
-
+    
     Args:
         results: Results dictionary
-
+        
     Returns:
         DataFrame with candidate data
     """
@@ -243,37 +311,47 @@ def export_results(results: Dict[str, Any]) -> pd.DataFrame:
             'Matching Skills': ', '.join(candidate.get('matching_skills', [])),
             'Fit Summary': candidate.get('fit_summary', '')
         })
-
+    
     return pd.DataFrame(data)
 
 
 def main():
     """Main application function."""
-
+    
     # Header
-    st.title(PAGE_TITLE)
+    st.title("Candidate Recommendation Engine")
     st.markdown(
         "Upload resumes and enter a job description to find the best candidates using AI-powered matching."
     )
-
+    
     # Load models
     embedding_engine, summarizer = load_models()
-
+    
     # Sidebar for configuration
     with st.sidebar:
         st.markdown("## ⚙️ Settings")
-
+        
+        # Category filter
+        st.markdown("### 🎯 Score Thresholds")
+        st.markdown("""
+        - **🌟 Perfect Match**: 90-100%
+        - **⭐ Ideal Candidate**: 70-90%
+        - **✅ Good Candidate**: 50-70%
+        - **👍 Okay Candidate**: 20-50%
+        - **❌ Not Recommended**: <20%
+        """)
+        
         # Model info
         with st.expander("Model Information"):
             model_info = embedding_engine.get_model_info()
             for key, value in model_info.items():
                 st.text(f"{key}: {value}")
-
+        
         # Sample data
         if st.button("Load Sample Job Description"):
             st.session_state.job_description = SAMPLE_JOB_DESCRIPTION
             st.rerun()
-
+        
         # Help section
         with st.expander("ℹ️ How to Use"):
             st.markdown("""
@@ -283,10 +361,10 @@ def main():
             4. **Review Results**: Explore top matches with AI-generated insights
             5. **Export**: Download results as CSV for further review
             """)
-
+    
     # Main content area
     col1, col2 = st.columns([1, 1])
-
+    
     with col1:
         st.markdown("### 📋 Job Description")
         job_description = st.text_area(
@@ -296,7 +374,7 @@ def main():
             placeholder="e.g., We are looking for a Senior Python Developer with 5+ years of experience..."
         )
         st.session_state.job_description = job_description
-
+    
     with col2:
         st.markdown("### 📁 Resume Upload")
         uploaded_files = st.file_uploader(
@@ -305,19 +383,19 @@ def main():
             accept_multiple_files=True,
             help=f"Supported formats: {', '.join(ALLOWED_FILE_TYPES)}. Max {MAX_FILE_SIZE_MB}MB per file."
         )
-
+        
         if uploaded_files:
             st.info(f"📎 {len(uploaded_files)} file(s) uploaded")
-
+            
             # Show uploaded files
             with st.expander("View uploaded files"):
                 for file in uploaded_files:
                     file_size_mb = len(file.getvalue()) / (1024 * 1024)
                     st.text(f"• {file.name} ({file_size_mb:.2f} MB)")
-
+    
     # Action buttons
     col1, col2, col3 = st.columns([2, 1, 1])
-
+    
     with col1:
         if st.button("🔍 Find Best Candidates", type="primary", use_container_width=True):
             # Validate inputs
@@ -334,28 +412,28 @@ def main():
                         embedding_engine,
                         summarizer
                     )
-
+                    
                     if results:
                         st.session_state.results = results
                         st.rerun()
-
+    
     with col2:
         if st.button("🔄 Clear All", use_container_width=True):
             st.session_state.results = None
             st.session_state.job_description = ""
             st.rerun()
-
+    
     # Display results if available
     if st.session_state.results:
         st.markdown("---")
         display_results(st.session_state.results)
-
+        
         # Export options
         st.markdown("---")
         st.markdown("### 📊 Export Results")
-
+        
         col1, col2 = st.columns(2)
-
+        
         with col1:
             # Export as CSV
             df = export_results(st.session_state.results)
@@ -367,12 +445,12 @@ def main():
                 mime="text/csv",
                 use_container_width=True
             )
-
+        
         with col2:
             # Display as table
             if st.button("📋 View as Table", use_container_width=True):
                 st.dataframe(df, use_container_width=True)
-
+    
     # Footer
     st.markdown("---")
     st.markdown(
@@ -393,6 +471,6 @@ if __name__ == "__main__":
         rotation="10 MB",
         level=LOG_LEVEL
     )
-
+    
     # Run app
     main()
