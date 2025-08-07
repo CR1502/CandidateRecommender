@@ -23,15 +23,24 @@ MAX_FILES_PER_UPLOAD = 20
 
 # Processing settings
 TOP_CANDIDATES_COUNT = 10
-MIN_SIMILARITY_SCORE = 0.0  # Show all candidates
+MIN_SIMILARITY_SCORE = 0.2  # Don't show candidates below 20%
 BATCH_SIZE = 32
+
+# Candidate categories
+CANDIDATE_CATEGORIES = {
+    'perfect': {'min': 90, 'max': 100, 'label': 'Perfect Match', 'emoji': '🌟', 'color': '#00D26A'},
+    'ideal': {'min': 70, 'max': 90, 'label': 'Ideal Candidate', 'emoji': '⭐', 'color': '#4CAF50'},
+    'good': {'min': 50, 'max': 70, 'label': 'Good Candidate', 'emoji': '✅', 'color': '#FFA726'},
+    'okay': {'min': 20, 'max': 50, 'label': 'Okay Candidate', 'emoji': '👍', 'color': '#FF9800'},
+    'not_recommended': {'min': 0, 'max': 20, 'label': 'Not Recommended', 'emoji': '❌', 'color': '#F44336'}
+}
 
 # Text processing settings
 MAX_TEXT_LENGTH = 10000  # Characters
 MIN_TEXT_LENGTH = 50
 
 # UI Settings
-PAGE_TITLE = "Candidate Recommendation Engine"
+PAGE_TITLE = "🎯 Candidate Recommendation Engine"
 PAGE_ICON = "🎯"
 LAYOUT = "wide"
 
