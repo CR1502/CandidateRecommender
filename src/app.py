@@ -61,10 +61,75 @@ def extract_contact_info(resume_text: str) -> Dict[str, Optional[str]]:
     Returns:
         Dictionary with email, phone, linkedin, github, location, website
     """
+    import re
     from core.text_cleaner import TextCleaner
     
-    cleaner = TextCleaner()
-    contact_info = cleaner.extract_contact_details(resume_text)
+    # Try to use the TextCleaner method if available
+    try:
+        cleaner = TextCleaner()
+        if hasattr(cleaner, 'extract_contact_details'):
+            return cleaner.extract_contact_details(resume_text)
+    except Exception as e:
+        logger.warning(f"Could not use TextCleaner.extract_contact_details: {e}")
+    
+    # Fallback extraction if method not available
+    contact_info = {
+        'email': None,
+        'phone': None,
+        'linkedin': None,
+        'github': None,
+        'location': None,
+        'website': None
+    }
+    
+    # Email extraction
+    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
+    emails = re.findall(email_pattern, resume_text)
+    if emails:
+        personal_emails = [e for e in emails if not any(x in e.lower() for x in ['noreply', 'support', 'info@', 'admin@'])]
+        contact_info['email'] = personal_emails[0] if personal_emails else emails[0]
+    
+    # Phone extraction
+    phone_patterns = [
+        r'(?:\+?1[-.]?)?\(?[0-9]{3}\)?[-.]?[0-9]{3}[-.]?[0-9]{4}',
+        r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b',
+        r'\(\d{3}\)\s*\d{3}[-.]?\d{4}',
+    ]
+    
+    for pattern in phone_patterns:
+        phones = re.findall(pattern, resume_text)
+        if phones:
+            for phone in phones:
+                cleaned = re.sub(r'[^\d+]', '', phone)
+                if 10 <= len(cleaned) <= 15:
+                    contact_info['phone'] = phone.strip()
+                    break
+            if contact_info['phone']:
+                break
+    
+    # LinkedIn extraction
+    linkedin_pattern = r'linkedin\.com/in/([a-zA-Z0-9\-]+)'
+    linkedin_match = re.search(linkedin_pattern, resume_text, re.IGNORECASE)
+    if linkedin_match:
+        contact_info['linkedin'] = f"linkedin.com/in/{linkedin_match.group(1)}"
+    
+    # GitHub extraction
+    github_pattern = r'github\.com/([a-zA-Z0-9\-]+)'
+    github_match = re.search(github_pattern, resume_text, re.IGNORECASE)
+    if github_match:
+        contact_info['github'] = f"github.com/{github_match.group(1)}"
+    
+    # Location extraction
+    location_pattern = r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2})\b'
+    location_match = re.search(location_pattern, resume_text)
+    if location_match:
+        contact_info['location'] = location_match.group(1)
+    
+    # Website extraction
+    website_pattern = r'(?:website|portfolio)[\s:]*(?:https?://)?([a-zA-Z0-9\-]+\.[a-zA-Z]{2,})'
+    website_match = re.search(website_pattern, resume_text, re.IGNORECASE)
+    if website_match:
+        contact_info['website'] = website_match.group(1)
     
     return contact_info
 
