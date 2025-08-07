@@ -51,6 +51,24 @@ def load_models():
             st.stop()
 
 
+def extract_contact_info(resume_text: str) -> Dict[str, Optional[str]]:
+    """
+    Extract contact information from resume text using advanced extraction.
+    
+    Args:
+        resume_text: Resume content as text
+        
+    Returns:
+        Dictionary with email, phone, linkedin, github, location, website
+    """
+    from core.text_cleaner import TextCleaner
+    
+    cleaner = TextCleaner()
+    contact_info = cleaner.extract_contact_details(resume_text)
+    
+    return contact_info
+
+
 def process_candidates(
     job_description: str,
     uploaded_files: List[Any],
@@ -295,12 +313,53 @@ def display_results(results: Dict[str, Any]) -> None:
                     # Add action buttons based on category
                     col1, col2, col3 = st.columns(3)
                     with col1:
-                        if candidate['percentage_score'] >= 70:
-                            if st.button(f"📅 Schedule Interview", key=f"interview_{candidate['candidate_name']}_{i}", type="primary"):
-                                st.success("Interview scheduling feature coming soon!")
-                        else:
-                            if st.button(f"📧 Contact", key=f"contact_{candidate['candidate_name']}_{i}"):
-                                st.info("Contact feature coming soon!")
+                        if st.button(f"📋 Get Info", key=f"info_{candidate['candidate_name']}_{i}", type="primary" if candidate['percentage_score'] >= 70 else "secondary"):
+                            # Extract contact info from resume
+                            contact_info = extract_contact_info(candidate['text'])
+                            
+                            # Display in a nice formatted box
+                            with st.container():
+                                st.markdown("#### 📇 Contact Information")
+                                
+                                contact_cols = st.columns(2)
+                                
+                                with contact_cols[0]:
+                                    if contact_info['email']:
+                                        st.markdown(f"**📧 Email**")
+                                        st.code(contact_info['email'], language=None)
+                                    else:
+                                        st.markdown("**📧 Email**")
+                                        st.text("Not found")
+                                    
+                                    if contact_info['phone']:
+                                        st.markdown(f"**📱 Phone**")
+                                        st.code(contact_info['phone'], language=None)
+                                    else:
+                                        st.markdown("**📱 Phone**")
+                                        st.text("Not found")
+                                    
+                                    if contact_info.get('location'):
+                                        st.markdown(f"**📍 Location**")
+                                        st.text(contact_info['location'])
+                                
+                                with contact_cols[1]:
+                                    if contact_info.get('linkedin'):
+                                        st.markdown(f"**💼 LinkedIn**")
+                                        st.markdown(f"[{contact_info['linkedin']}](https://{contact_info['linkedin']})")
+                                    
+                                    if contact_info.get('github'):
+                                        st.markdown(f"**💻 GitHub**")
+                                        st.markdown(f"[{contact_info['github']}](https://{contact_info['github']})")
+                                    
+                                    if contact_info.get('website'):
+                                        st.markdown(f"**🌐 Website**")
+                                        st.markdown(f"[{contact_info['website']}](https://{contact_info['website']})")
+                                
+                                if not any([contact_info.get('email'), contact_info.get('phone')]):
+                                    st.warning("⚠️ No contact information found in resume. Manual review recommended.")
+                                else:
+                                    st.success("✅ Contact information extracted successfully!")
+                    
                     with col2:
                         if st.button(f"📄 View Resume", key=f"view_{candidate['candidate_name']}_{i}"):
                             with st.container():
@@ -314,6 +373,9 @@ def display_results(results: Dict[str, Any]) -> None:
                         if candidate['percentage_score'] >= 50:
                             if st.button(f"⭐ Add to Shortlist", key=f"shortlist_{candidate['candidate_name']}_{i}"):
                                 st.success("Added to shortlist!")
+                        else:
+                            if st.button(f"💾 Save for Later", key=f"save_{candidate['candidate_name']}_{i}"):
+                                st.info("Saved for future reference!")
             
             st.markdown("")  # Add spacing between categories
 
