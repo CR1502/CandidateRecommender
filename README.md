@@ -530,11 +530,7 @@ flake8 src/  # Check style
 4. **Historical Learning**: Track which candidates got hired to improve rankings
 5. **Resume Parsing API**: Standalone service for structured data extraction
 
-## Why This Approach Works
 
-Traditional ATS: "Python" keyword found ✓/✗
-
-My System: Understands "Python developer" ≈ "Software engineer with Django experience" ≈ "Backend programmer using FastAPI"
 
 The semantic understanding captures what candidates CAN do, not just what keywords they remembered to include.
 
