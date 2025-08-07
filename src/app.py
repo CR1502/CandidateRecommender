@@ -134,6 +134,26 @@ def extract_contact_info(resume_text: str) -> Dict[str, Optional[str]]:
     return contact_info
 
 
+def validate_text_content(text: str, min_length: int = 50) -> bool:
+    """
+    Validate if text is suitable for processing.
+    
+    Args:
+        text: Text to validate
+        min_length: Minimum text length required
+        
+    Returns:
+        True if valid, False otherwise
+    """
+    if not text or not text.strip():
+        return False
+    
+    if len(text.strip()) < min_length:
+        return False
+    
+    return True
+
+
 def process_candidates(
     job_description: str,
     uploaded_files: List[Any],
@@ -154,7 +174,12 @@ def process_candidates(
     """
     # Initialize processors
     file_processor = FileProcessor(MAX_FILE_SIZE_MB)
-    text_cleaner = TextCleaner()
+    
+    # Try to use TextCleaner, but have fallbacks for all methods
+    try:
+        text_cleaner = TextCleaner()
+    except:
+        text_cleaner = None
     
     # Process files
     progress_bar = st.progress(0)
@@ -177,10 +202,18 @@ def process_candidates(
             # Process file
             text, candidate_name = file_processor.process_file(file, file.name)
             
-            # Clean text
-            cleaned_text = text_cleaner.prepare_for_embedding(text)
+            # Clean text - with fallback
+            if text_cleaner and hasattr(text_cleaner, 'prepare_for_embedding'):
+                cleaned_text = text_cleaner.prepare_for_embedding(text)
+            else:
+                # Fallback cleaning
+                import re
+                cleaned_text = re.sub(r'\s+', ' ', text).strip()
+                if len(cleaned_text) > 10000:
+                    cleaned_text = cleaned_text[:10000]
             
-            if text_cleaner.validate_text(cleaned_text):
+            # Validate text using inline function
+            if validate_text_content(cleaned_text):
                 processed_resumes.append({
                     'filename': file.name,
                     'candidate_name': candidate_name,
@@ -201,8 +234,13 @@ def process_candidates(
     status_text.text("🤖 Analyzing candidates with AI...")
     
     try:
-        # Clean job description
-        cleaned_job_desc = text_cleaner.prepare_for_embedding(job_description)
+        # Clean job description - with fallback
+        if text_cleaner and hasattr(text_cleaner, 'prepare_for_embedding'):
+            cleaned_job_desc = text_cleaner.prepare_for_embedding(job_description)
+        else:
+            # Fallback cleaning
+            import re
+            cleaned_job_desc = re.sub(r'\s+', ' ', job_description).strip()
         
         # Rank candidates
         ranked_candidates = embedding_engine.rank_candidates(
