@@ -198,33 +198,40 @@ class CandidateSummarizer:
         needs_frontend = any(term in job_lower for term in ['frontend', 'react', 'angular', 'vue', 'ui/ux'])
         
         # Build diverse summaries based on score and context
-        if similarity_score >= 0.8:
+        if similarity_score >= 0.9:  # Perfect Match
             templates = [
-                f"Exceptional match with {max_years}+ years of directly relevant experience. {self._get_strength_statement(matching_skills, needs_ml, needs_cloud, has_leadership)}",
-                f"This candidate's profile aligns remarkably well with your requirements. {self._get_experience_highlight(max_years, has_leadership, has_masters, has_phd)} {self._get_skills_statement(matching_skills)}",
-                f"Outstanding candidate bringing proven expertise in {', '.join(matching_skills[:3])} along with {self._get_experience_descriptor(max_years, has_leadership)}. Their background demonstrates exactly the kind of hands-on experience you're seeking.",
-                f"Near-perfect alignment with the role requirements. {self._get_unique_value_prop(matching_skills, max_years, has_leadership, needs_ml, needs_cloud)}",
+                f"🌟 PERFECT MATCH: With {max_years}+ years of directly relevant experience and expertise in {', '.join(matching_skills[:3]) if matching_skills else 'all key areas'}, this candidate exceeds all requirements. {self._get_strength_statement(matching_skills, needs_ml, needs_cloud, has_leadership)}",
+                f"🌟 EXCEPTIONAL FIT: This candidate's profile surpasses expectations in every dimension. {self._get_experience_highlight(max_years, has_leadership, has_masters, has_phd)} Their expertise precisely matches your needs - immediate impact guaranteed.",
+                f"🌟 TOP TIER: Outstanding candidate who not only meets but exceeds requirements. {self._get_unique_value_prop(matching_skills, max_years, has_leadership, needs_ml, needs_cloud)} This is the caliber of talent that transforms teams.",
+                f"🌟 RARE FIND: Near-perfect alignment with {len(matching_skills)} matching skills and {max_years if max_years else 'extensive'} years of relevant experience. This candidate represents exactly what you're looking for and more.",
             ]
-        elif similarity_score >= 0.6:
+        elif similarity_score >= 0.7:  # Ideal Candidate
             templates = [
-                f"Strong candidate with solid experience in {', '.join(matching_skills[:3])}. {self._get_growth_statement(max_years, has_leadership)} Would likely excel in this position.",
-                f"Well-qualified professional whose background in {self._get_skill_area(matching_skills, needs_ml, needs_backend)} aligns nicely with your needs. {self._get_potential_statement(has_masters, max_years)}",
-                f"This candidate brings valuable expertise, particularly in {', '.join(matching_skills[:2])}. {self._get_fit_assessment(similarity_score, max_years, has_leadership)}",
-                f"Compelling background with {max_years if max_years > 0 else 'relevant'} years of experience. {self._get_transferable_skills(matching_skills, needs_ml, needs_cloud)}",
+                f"⭐ Ideal candidate with {max_years if max_years else 'solid'} years in {', '.join(matching_skills[:3]) if matching_skills else 'relevant technologies'}. {self._get_strength_statement(matching_skills, needs_ml, needs_cloud, has_leadership)} Strong recommendation for interview.",
+                f"⭐ Excellent match bringing proven expertise and the right skill mix. {self._get_experience_highlight(max_years, has_leadership, has_masters, has_phd)} Would integrate seamlessly with your team.",
+                f"⭐ This candidate ticks all the major boxes with particular strength in {', '.join(matching_skills[:2]) if matching_skills else 'core requirements'}. {self._get_fit_assessment(similarity_score, max_years, has_leadership)}",
+                f"⭐ Highly qualified professional whose background aligns beautifully with your needs. {self._get_unique_value_prop(matching_skills, max_years, has_leadership, needs_ml, needs_cloud)}",
             ]
-        elif similarity_score >= 0.4:
+        elif similarity_score >= 0.5:  # Good Candidate
             templates = [
-                f"Solid foundational skills in {', '.join(matching_skills[:2]) if matching_skills else 'relevant areas'}. {self._get_development_potential(max_years, has_masters)}",
-                f"This candidate shows promise with experience in {self._get_relevant_areas(matching_skills, resume_text)}. Could be a good fit with some additional training.",
-                f"Interesting profile with transferable skills. {self._get_adjacent_experience(matching_skills, max_years)} Worth considering for the role.",
-                f"Demonstrates competency in several key areas. {self._get_growth_trajectory(has_leadership, max_years, matching_skills)}",
+                f"Good candidate with relevant experience in {', '.join(matching_skills[:3]) if matching_skills else 'key areas'}. {self._get_growth_statement(max_years, has_leadership)} Would be a solid addition to the team.",
+                f"Well-positioned candidate whose background in {self._get_skill_area(matching_skills, needs_ml, needs_backend)} provides good foundation. {self._get_potential_statement(has_masters, max_years)}",
+                f"This candidate brings valuable expertise with {max_years if max_years > 0 else 'relevant'} years of experience. {self._get_transferable_skills(matching_skills, needs_ml, needs_cloud)} Worth interviewing.",
+                f"Solid professional with competencies that align well with core requirements. {self._get_fit_assessment(similarity_score, max_years, has_leadership)}",
             ]
-        else:
+        elif similarity_score >= 0.2:  # Okay Candidate
             templates = [
-                f"While primarily experienced in adjacent areas, this candidate shows {self._get_potential_indicator(matching_skills, has_masters)}",
-                f"Alternative background that could bring fresh perspective. {self._get_transferable_value(matching_skills, max_years)}",
-                f"Foundational skills present with room for growth. {self._get_learning_potential(has_masters, has_phd, max_years)}",
-                f"Cross-functional experience that may translate well. {self._get_unique_angle(matching_skills, resume_text)}",
+                f"Candidate with foundational skills in {', '.join(matching_skills[:2]) if matching_skills else 'some relevant areas'}. {self._get_development_potential(max_years, has_masters)} Could grow into the role with support.",
+                f"Shows potential with experience in {self._get_relevant_areas(matching_skills, resume_text)}. Would require some training but has the basics covered.",
+                f"This profile offers transferable skills that could adapt to your needs. {self._get_adjacent_experience(matching_skills, max_years)} Consider if looking to train and develop talent.",
+                f"Has relevant background though not a direct match. {self._get_growth_trajectory(has_leadership, max_years, matching_skills)} Could be viable for junior position or with mentorship.",
+            ]
+        else:  # Not Recommended (below 20%)
+            templates = [
+                f"Limited alignment with core requirements. {self._get_potential_indicator(matching_skills, has_masters)} Would need significant training and development.",
+                f"Background doesn't strongly match current needs. {self._get_transferable_value(matching_skills, max_years)} Consider only if open to major skill development.",
+                f"Minimal overlap with job requirements. {self._get_learning_potential(has_masters, has_phd, max_years)} Not recommended for this specific role.",
+                f"Skills and experience don't align well with position needs. {self._get_unique_angle(matching_skills, resume_text)} Better suited for different role.",
             ]
         
         # Select random template for diversity
