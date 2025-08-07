@@ -180,6 +180,31 @@ def display_results(results: Dict[str, Any]) -> None:
     
     candidates = results['candidates']
     
+    # Ensure all candidates have category fields (for backward compatibility)
+    for candidate in candidates:
+        if 'category' not in candidate or 'category_emoji' not in candidate:
+            percentage = candidate['percentage_score']
+            if percentage >= 90:
+                candidate['category'] = "Perfect Match"
+                candidate['category_emoji'] = "🌟"
+                candidate['category_color'] = "#00D26A"
+            elif percentage >= 70:
+                candidate['category'] = "Ideal Candidate"
+                candidate['category_emoji'] = "⭐"
+                candidate['category_color'] = "#4CAF50"
+            elif percentage >= 50:
+                candidate['category'] = "Good Candidate"
+                candidate['category_emoji'] = "✅"
+                candidate['category_color'] = "#FFA726"
+            elif percentage >= 20:
+                candidate['category'] = "Okay Candidate"
+                candidate['category_emoji'] = "👍"
+                candidate['category_color'] = "#FF9800"
+            else:
+                candidate['category'] = "Not Recommended"
+                candidate['category_emoji'] = "❌"
+                candidate['category_color'] = "#F44336"
+    
     # Filter out "Not Recommended" candidates unless explicitly shown
     show_not_recommended = st.checkbox("Show 'Not Recommended' candidates (below 20%)", value=False)
     
@@ -227,9 +252,11 @@ def display_results(results: Dict[str, Any]) -> None:
             for i, candidate in enumerate(category_candidates):
                 # Color-coded expander based on category
                 category_color = candidate.get('category_color', '#808080')
+                category_emoji = candidate.get('category_emoji', '📋')
+                category = candidate.get('category', 'Candidate')
                 
                 with st.expander(
-                    f"{candidate['category_emoji']} **{candidate['candidate_name']}** "
+                    f"{category_emoji} **{candidate['candidate_name']}** "
                     f"(Match: {candidate['percentage_score']:.1f}%)",
                     expanded=(expanded_default and i < 2)  # Expand first 2 in top categories
                 ):
@@ -238,7 +265,7 @@ def display_results(results: Dict[str, Any]) -> None:
                     with col1:
                         st.metric("Match Score", f"{candidate['percentage_score']:.1f}%")
                     with col2:
-                        st.metric("Category", candidate['category'])
+                        st.metric("Category", category)
                     with col3:
                         st.metric("Rank", f"#{candidate['rank']}")
                     with col4:
@@ -421,6 +448,7 @@ def main():
         if st.button("🔄 Clear All", use_container_width=True):
             st.session_state.results = None
             st.session_state.job_description = ""
+            st.session_state.processed_files = []
             st.rerun()
     
     # Display results if available
