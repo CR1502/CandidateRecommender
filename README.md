@@ -431,29 +431,5 @@ flake8 src/  # Check style
 - **GPU**: Optional, 3x speedup if available
 - **Disk**: 500MB models + logs
 
-## References
-
-### Academic Papers
-1. **Sentence-BERT**: Reimers, N., & Gurevych, I. (2019). "Sentence-BERT: Sentence Embeddings using Siamese BERT-Networks." *EMNLP-IJCNLP 2019*. [arXiv:1908.10084](https://arxiv.org/abs/1908.10084)
-
-2. **T5 Model**: Raffel, C., et al. (2020). "Exploring the Limits of Transfer Learning with a Unified Text-to-Text Transformer." *JMLR*. [arXiv:1910.10683](https://arxiv.org/abs/1910.10683)
-
-3. **Cosine Similarity in NLP**: Rahutomo, F., et al. (2012). "Semantic Cosine Similarity." *International Student Conference on Electrical Engineering and Informatics*.
-
-### Libraries & Frameworks
-- **Streamlit**: [streamlit.io](https://streamlit.io) - The fastest way to build data apps
-- **Sentence Transformers**: [sbert.net](https://www.sbert.net) - State-of-the-art sentence embeddings
-- **Hugging Face Transformers**: [huggingface.co](https://huggingface.co/transformers) - State-of-the-art NLP
-- **PyPDF2**: PDF processing library
-- **python-docx**: Word document processing
-
-### Related Projects
-- [ResumeParser](https://github.com/OmkarPathak/ResumeParser) - Resume parsing with NLP
-- [Job-Skills-Extraction](https://github.com/kingabzpro/Job-Skills-Extraction) - Extract skills from job descriptions
-- [AI-Recruiter](https://github.com/ai-recruiter/ai-recruiter) - AI-powered recruitment platform
-
 ---
 
-**Built with ❤️ by the Open Source Community**
-
-For questions, issues, or suggestions, please open an issue on GitHub or contact the maintainers.
