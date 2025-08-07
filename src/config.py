@@ -31,7 +31,7 @@ MAX_TEXT_LENGTH = 10000  # Characters
 MIN_TEXT_LENGTH = 50
 
 # UI Settings
-PAGE_TITLE = "🎯 Candidate Recommendation Engine"
+PAGE_TITLE = "Candidate Recommendation Engine"
 PAGE_ICON = "🎯"
 LAYOUT = "wide"
 
