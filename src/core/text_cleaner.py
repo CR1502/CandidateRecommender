@@ -3,240 +3,364 @@ Text cleaning and preprocessing utilities.
 """
 
 import re
+import hashlib
 from typing import Optional, List, Dict
 from loguru import logger
 
 
+# Explicit skill registry: (regex_pattern, display_name)
+# Order matters — more specific patterns first to avoid partial matches
+SKILL_REGISTRY = [
+    # Languages
+    (r'\bc\+\+\b',          'C++'),
+    (r'\bc#\b',              'C#'),
+    (r'\brust\b',            'Rust'),
+    (r'\bgolang\b|\bgo\b',   'Go'),
+    (r'\bpython\b',          'Python'),
+    (r'\bjava\b',            'Java'),
+    (r'\bkotlin\b',          'Kotlin'),
+    (r'\bscala\b',           'Scala'),
+    (r'\bswift\b',           'Swift'),
+    (r'\bruby\b',            'Ruby'),
+    (r'\bphp\b',             'PHP'),
+    (r'\br\b',               'R'),
+    (r'\bjavascript\b|\bjs\b', 'JavaScript'),
+    (r'\btypescript\b|\bts\b', 'TypeScript'),
+    (r'\bhtml\b',            'HTML'),
+    (r'\bcss\b',             'CSS'),
+    (r'\bbash\b|\bshell\b',  'Shell/Bash'),
+
+    # Frontend
+    (r'\breact\.?js\b|\breact\b', 'React'),
+    (r'\bvue\.?js\b|\bvue\b',     'Vue'),
+    (r'\bangular\b',              'Angular'),
+    (r'\bnext\.?js\b',            'Next.js'),
+    (r'\bsvelte\b',               'Svelte'),
+    (r'\btailwind\b',             'Tailwind CSS'),
+
+    # Backend frameworks
+    (r'\bfastapi\b',         'FastAPI'),
+    (r'\bdjango\b',          'Django'),
+    (r'\bflask\b',           'Flask'),
+    (r'\bnode\.?js\b',       'Node.js'),
+    (r'\bexpress\.?js\b|\bexpress\b', 'Express'),
+    (r'\bspring\b',          'Spring'),
+    (r'\brails\b',           'Rails'),
+    (r'\blaravel\b',         'Laravel'),
+
+    # Databases
+    (r'\bpostgresql\b|\bpostgres\b', 'PostgreSQL'),
+    (r'\bmysql\b',           'MySQL'),
+    (r'\bsqlite\b',          'SQLite'),
+    (r'\bmongodb\b',         'MongoDB'),
+    (r'\bredis\b',           'Redis'),
+    (r'\belasticsearch\b',   'Elasticsearch'),
+    (r'\bcassandra\b',       'Cassandra'),
+    (r'\bdynamodb\b',        'DynamoDB'),
+    (r'\bsql\b',             'SQL'),
+    (r'\bnosql\b',           'NoSQL'),
+
+    # Cloud & DevOps
+    (r'\baws\b|amazon web services',  'AWS'),
+    (r'\bazure\b',           'Azure'),
+    (r'\bgcp\b|google cloud', 'GCP'),
+    (r'\bdocker\b',          'Docker'),
+    (r'\bkubernetes\b|\bk8s\b', 'Kubernetes'),
+    (r'\bterraform\b',       'Terraform'),
+    (r'\bansible\b',         'Ansible'),
+    (r'\bjenkins\b',         'Jenkins'),
+    (r'\bgithub actions\b',  'GitHub Actions'),
+    (r'\bci/cd\b|\bcontinuous integration\b', 'CI/CD'),
+    (r'\bhelm\b',            'Helm'),
+
+    # ML / AI
+    (r'\btensorflow\b|\btf\b', 'TensorFlow'),
+    (r'\bpytorch\b',         'PyTorch'),
+    (r'\bscikit.learn\b|\bsklearn\b', 'scikit-learn'),
+    (r'\bkeras\b',           'Keras'),
+    (r'\bhugging face\b|\bhuggingface\b|\btransformers\b', 'HuggingFace'),
+    (r'\blangchain\b',       'LangChain'),
+    (r'\bllm\b|large language model', 'LLMs'),
+    (r'\bmachine learning\b|\bml\b', 'Machine Learning'),
+    (r'\bdeep learning\b',   'Deep Learning'),
+    (r'\bnlp\b|natural language processing', 'NLP'),
+    (r'\bcomputer vision\b|\bcv\b', 'Computer Vision'),
+    (r'\bmlops\b',           'MLOps'),
+    (r'\bdata science\b',    'Data Science'),
+    (r'\breinforcement learning\b', 'Reinforcement Learning'),
+
+    # Data engineering
+    (r'\bapache spark\b|\bspark\b', 'Spark'),
+    (r'\bairflow\b',         'Airflow'),
+    (r'\bkafka\b',           'Kafka'),
+    (r'\bflink\b',           'Flink'),
+    (r'\bdbt\b',             'dbt'),
+    (r'\bsnowflake\b',       'Snowflake'),
+    (r'\bbigquery\b',        'BigQuery'),
+    (r'\bdatabricks\b',      'Databricks'),
+
+    # General engineering
+    (r'\brest\b|restful|rest api', 'REST APIs'),
+    (r'\bgraphql\b',         'GraphQL'),
+    (r'\bgrpc\b',            'gRPC'),
+    (r'\bmicroservices\b',   'Microservices'),
+    (r'\bgit\b',             'Git'),
+    (r'\blinux\b|\bunix\b',  'Linux'),
+    (r'\bagile\b',           'Agile'),
+    (r'\bscrum\b',           'Scrum'),
+
+    # Python-specific
+    (r'\bpandas\b',          'pandas'),
+    (r'\bnumpy\b',           'NumPy'),
+    (r'\bsqlalchemy\b',      'SQLAlchemy'),
+    (r'\bcelery\b',          'Celery'),
+    (r'\bpydantic\b',        'Pydantic'),
+]
+
+
 class TextCleaner:
     """Clean and preprocess text for embedding generation."""
-    
+
     def __init__(self):
-        """Initialize the text cleaner."""
         self.min_length = 50
-        self.max_length = 10000
-        
+        self.max_length = 12000
+
     def clean_text(self, text: str) -> str:
         """
-        Clean and normalize text for processing.
-        
+        Clean and normalize text for embedding. Preserves characters that
+        are meaningful in a technical context (C++, C#, @, /, +).
+
         Args:
             text: Raw text to clean
-            
+
         Returns:
-            Cleaned text string
-            
-        Example:
-            >>> cleaner = TextCleaner()
-            >>> cleaned = cleaner.clean_text("  Some\\n\\ntext  with   spaces  ")
-            >>> print(cleaned)
+            Cleaned text
         """
         if not text:
             return ""
-            
+
         try:
-            # Remove excessive whitespace
+            # Collapse whitespace
             text = re.sub(r'\s+', ' ', text)
-            
-            # Remove special characters but keep important punctuation
-            text = re.sub(r'[^\w\s\.\,\;\:\!\?\-\(\)]', '', text)
-            
-            # Remove multiple consecutive punctuation marks
-            text = re.sub(r'([\.,:;!?])\1+', r'\1', text)
-            
-            # Strip leading/trailing whitespace
+
+            # Remove characters that are truly noise (control chars, zero-width etc.)
+            # but keep: letters, digits, spaces, and common punctuation including
+            # @, /, +, #, & which appear in skill names and contact info
+            text = re.sub(r'[^\w\s\.\,\;\:\!\?\-\(\)\@\/\+\#\&]', '', text)
+
+            # Collapse repeated punctuation (e.g. "..." → ".")
+            text = re.sub(r'([.,;:!?])\1+', r'\1', text)
+
             text = text.strip()
-            
-            # Truncate if too long
+
             if len(text) > self.max_length:
-                logger.warning(f"Text truncated from {len(text)} to {self.max_length} characters")
+                logger.warning(f"Text truncated from {len(text)} to {self.max_length} chars")
                 text = text[:self.max_length]
-                
+
             return text
-            
+
         except Exception as e:
             logger.error(f"Error cleaning text: {e}")
             return text
-    
+
     def extract_candidate_name(self, text: str, filename: Optional[str] = None) -> str:
         """
         Extract candidate name from resume text or filename.
-        
-        Args:
-            text: Resume text
-            filename: Optional filename
-            
-        Returns:
-            Extracted name or generated ID
+
+        Priority: filename → first lines of text → hash fallback.
         """
-        # Try to extract from filename first
+        # Try filename first
         if filename:
-            # Remove extension and clean filename
             name = filename.rsplit('.', 1)[0]
             name = re.sub(r'[_\-]', ' ', name)
             name = re.sub(r'resume|cv|curriculum|vitae', '', name, flags=re.IGNORECASE)
             name = name.strip()
-            if name and len(name) > 2:
+            if len(name) > 2:
                 return name.title()
-        
-        # Try to extract from text (look for name patterns at the beginning)
-        lines = text.split('\n')[:5]  # Check first 5 lines
-        for line in lines:
+
+        # Look in first 5 lines for a 2-4 word all-alpha sequence (likely a name)
+        for line in text.split('\n')[:5]:
             line = line.strip()
-            # Simple heuristic: if line is 2-4 words and contains mostly letters
             words = line.split()
-            if 2 <= len(words) <= 4:
-                if all(word.replace('-', '').isalpha() for word in words):
-                    return ' '.join(words).title()
-        
-        # Fallback to generated ID
-        import hashlib
+            if 2 <= len(words) <= 4 and all(w.replace('-', '').isalpha() for w in words):
+                return ' '.join(words).title()
+
         text_hash = hashlib.md5(text.encode()).hexdigest()[:8]
         return f"Candidate_{text_hash}"
-    
+
     def extract_key_skills(self, text: str) -> List[str]:
         """
-        Extract key skills from text.
-        
-        Args:
-            text: Resume or job description text
-            
-        Returns:
-            List of extracted skills
+        Extract skills from text using the SKILL_REGISTRY.
+
+        Returns a list of display-name skills found in the text (up to 15).
         """
-        # Common skill keywords (expandable)
-        skill_patterns = [
-            r'python', r'java\b', r'javascript', r'typescript', r'react', r'angular',
-            r'node\.?js', r'django', r'flask', r'fastapi', r'sql', r'nosql', r'mongodb',
-            r'postgresql', r'mysql', r'docker', r'kubernetes', r'aws', r'azure', r'gcp',
-            r'machine learning', r'deep learning', r'tensorflow', r'pytorch', r'scikit-learn',
-            r'pandas', r'numpy', r'data science', r'nlp', r'computer vision', r'ai\b',
-            r'rest api', r'graphql', r'microservices', r'ci/cd', r'git', r'agile', r'scrum',
-            r'leadership', r'communication', r'problem solving', r'teamwork'
-        ]
-        
         text_lower = text.lower()
-        found_skills = []
-        
-        for pattern in skill_patterns:
-            if re.search(pattern, text_lower):
-                # Clean up the skill name
-                skill = pattern.replace(r'\b', '').replace(r'\.?', '.').replace('\\', '')
-                found_skills.append(skill.title())
-        
-        return list(set(found_skills))[:10]  # Return top 10 unique skills
-    
+        found = []
+
+        for pattern, display_name in SKILL_REGISTRY:
+            if re.search(pattern, text_lower) and display_name not in found:
+                found.append(display_name)
+
+        return found[:15]
+
+    def extract_skills_with_llm(
+        self,
+        text: str,
+        base_url: str = "http://localhost:11434",
+        model: str = "llama3.2",
+    ) -> List[str]:
+        """
+        Use Ollama to extract skills from text.
+
+        This catches technologies not in SKILL_REGISTRY (newer frameworks,
+        domain-specific tools, niche libraries) and normalises naming
+        (e.g. "Postgres" → "PostgreSQL", "k8s" → "Kubernetes").
+
+        Falls back to dictionary extraction if Ollama is unavailable or returns
+        unparseable output.
+        """
+        import json as _json
+
+        try:
+            import requests as _req
+
+            prompt = (
+                "List every technical skill in this text: programming languages, "
+                "frameworks, libraries, databases, cloud services, DevOps tools, "
+                "ML frameworks, and methodologies. Use common canonical names "
+                "(e.g. 'PostgreSQL' not 'postgres', 'Kubernetes' not 'k8s'). "
+                "Return ONLY a JSON array of short strings. No explanation.\n\n"
+                f"Text:\n{text[:1800]}\n\nJSON array:"
+            )
+
+            r = _req.post(
+                f"{base_url}/api/generate",
+                json={
+                    "model": model,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {"temperature": 0.05, "num_predict": 300},
+                },
+                timeout=20,
+            )
+            if r.status_code == 200:
+                raw = r.json().get("response", "").strip()
+                # Ollama sometimes wraps the array in prose — extract just the []
+                m = re.search(r"\[.*\]", raw, re.DOTALL)
+                if m:
+                    skills = _json.loads(m.group(0))
+                    if isinstance(skills, list):
+                        cleaned = [
+                            str(s).strip()
+                            for s in skills
+                            if s and isinstance(s, str) and len(str(s)) < 60
+                        ]
+                        return cleaned[:25]
+        except Exception as e:
+            logger.debug(f"LLM skill extraction failed: {e}")
+
+        # Fallback
+        return self.extract_key_skills(text)
+
+    def extract_required_skills(self, job_text: str) -> List[str]:
+        """
+        Extract skills from a job description that appear to be requirements.
+
+        Looks for skills near requirement signal words (required, must, need, etc.)
+        as well as bare skill mentions, since most JDs list them explicitly.
+        """
+        # For now this is the same as extract_key_skills — job descriptions tend
+        # to list skills directly. A future improvement would weight skills that
+        # appear near "required" / "must have" higher.
+        return self.extract_key_skills(job_text)
+
     def prepare_for_embedding(self, text: str) -> str:
-        """
-        Prepare text specifically for embedding generation.
-        
-        Args:
-            text: Text to prepare
-            
-        Returns:
-            Prepared text for embedding
-        """
-        # Clean the text
+        """Clean text for embedding generation."""
         text = self.clean_text(text)
-        
-        # Remove very short text
         if len(text) < self.min_length:
-            logger.warning(f"Text too short ({len(text)} chars), may affect quality")
-        
+            logger.warning(f"Short text ({len(text)} chars) may reduce embedding quality")
         return text
-    
+
     def extract_contact_details(self, text: str) -> Dict[str, Optional[str]]:
         """
-        Extract detailed contact information from text.
-        
-        Args:
-            text: Resume text
-            
-        Returns:
-            Dictionary with contact details
+        Extract contact information from raw resume text.
+
+        Always call this on the *original* (uncleaned) text so that
+        characters like @ and / are still present.
         """
-        import re
-        
-        contact = {
+        contact: Dict[str, Optional[str]] = {
             'email': None,
             'phone': None,
             'linkedin': None,
             'github': None,
             'location': None,
-            'website': None
+            'website': None,
         }
-        
-        # Email extraction (improved)
-        email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,7}\b'
-        emails = re.findall(email_pattern, text)
+
+        # Email
+        emails = re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,7}\b', text)
         if emails:
-            # Filter out common non-personal emails
-            personal_emails = [e for e in emails if not any(x in e.lower() for x in ['noreply', 'support', 'info@', 'admin@'])]
-            contact['email'] = personal_emails[0] if personal_emails else emails[0]
-        
-        # Phone extraction (comprehensive)
+            noise = ('noreply', 'support', 'info@', 'admin@', 'no-reply')
+            personal = [e for e in emails if not any(n in e.lower() for n in noise)]
+            contact['email'] = personal[0] if personal else emails[0]
+
+        # Phone (US + international, with optional extension)
         phone_patterns = [
-            r'(?:(?:Tel|Phone|Mobile|Cell)[\s:]*)?(?:[\+]?[(]?[0-9]{1,3}[)]?[-\s\.]?)?[(]?[0-9]{1,4}[)]?[-\s\.]?[0-9]{1,4}[-\s\.]?[0-9]{1,9}',
-            r'\b(?:\+?1[-.]?)?\(?[0-9]{3}\)?[-.]?[0-9]{3}[-.]?[0-9]{4}\b',
-            r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b',
+            r'(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?:\s*(?:x|ext\.?)\s*\d{1,6})?',
+            r'\+?[1-9]\d{0,2}[-.\s]\d{2,4}[-.\s]\d{4,8}',
+            r'\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b',
         ]
-        
         for pattern in phone_patterns:
-            phones = re.findall(pattern, text, re.IGNORECASE)
-            if phones:
-                # Clean and validate
-                for phone in phones:
-                    cleaned = re.sub(r'[^\d+]', '', phone)
-                    if 10 <= len(cleaned) <= 15:  # Valid phone length
-                        contact['phone'] = phone.strip()
-                        break
-                if contact['phone']:
-                    break
-        
-        # LinkedIn extraction
-        linkedin_patterns = [
-            r'linkedin\.com/in/([a-zA-Z0-9\-]+)',
-            r'LinkedIn[\s:]+([a-zA-Z0-9\-]+)',
-            r'linkedin\.com/pub/([a-zA-Z0-9\-]+)',
-        ]
-        
-        for pattern in linkedin_patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
-                linkedin_id = match.group(1)
-                contact['linkedin'] = f"linkedin.com/in/{linkedin_id}"
+                raw = match.group(0).strip()
+                digits = re.sub(r'\D', '', raw)
+                if 10 <= len(digits) <= 15:
+                    contact['phone'] = raw
+                    break
+
+        # LinkedIn
+        for pattern in [r'linkedin\.com/in/([A-Za-z0-9\-_]+)',
+                         r'linkedin\.com/pub/([A-Za-z0-9\-_]+)']:
+            m = re.search(pattern, text, re.IGNORECASE)
+            if m:
+                contact['linkedin'] = f"linkedin.com/in/{m.group(1)}"
                 break
-        
-        # GitHub extraction
-        github_pattern = r'github\.com/([a-zA-Z0-9\-]+)'
-        github_match = re.search(github_pattern, text, re.IGNORECASE)
-        if github_match:
-            contact['github'] = f"github.com/{github_match.group(1)}"
-        
-        # Location extraction
-        # Common patterns: "City, State" or "City, Country"
-        location_indicators = ['Location', 'Address', 'Based in', 'Lives in', 'Residing']
-        for indicator in location_indicators:
-            pattern = f'{indicator}[\s:]*([A-Za-z\\s]+(?:,\\s*[A-Za-z\\s]+)?)'
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                location = match.group(1).strip()
-                # Clean up location
-                if len(location) > 3 and ',' in location:
-                    contact['location'] = location
+
+        # GitHub
+        m = re.search(r'github\.com/([A-Za-z0-9\-_]+)', text, re.IGNORECASE)
+        if m:
+            contact['github'] = f"github.com/{m.group(1)}"
+
+        # Location — try labelled indicators first, then "City, ST" pattern
+        for indicator in ['Location', 'Address', 'Based in', 'Lives in', 'Residing in']:
+            m = re.search(
+                rf'{indicator}[\s:]*([A-Za-z][A-Za-z\s]+(?:,\s*[A-Za-z\s]{{2,}})?)',
+                text, re.IGNORECASE
+            )
+            if m:
+                loc = m.group(1).strip()
+                if len(loc) > 3 and ',' in loc:
+                    contact['location'] = loc
                     break
-        
-        # If no location found with indicators, try common city patterns
+
         if not contact['location']:
-            # Look for "City, ST" pattern (US cities)
-            us_city_pattern = r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*,\s*[A-Z]{2})\b'
-            match = re.search(us_city_pattern, text)
-            if match:
-                contact['location'] = match.group(1)
-        
-        # Website extraction
-        website_pattern = r'(?:website|portfolio|www)[\s:]*(?:https?://)?([a-zA-Z0-9\-]+\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?)'
-        website_match = re.search(website_pattern, text, re.IGNORECASE)
-        if website_match:
-            contact['website'] = website_match.group(1)
-        
+            # US "City, ST" pattern
+            m = re.search(r'\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)*,\s*[A-Z]{2})\b', text)
+            if m:
+                contact['location'] = m.group(1)
+
+        # Website / portfolio — match labelled URLs or bare domains
+        m = re.search(
+            r'(?:website|portfolio|personal site|www)[\s:]*(?:https?://)?([A-Za-z0-9\-]+\.[A-Za-z]{2,}(?:/[^\s]*)?)',
+            text, re.IGNORECASE
+        )
+        if m:
+            contact['website'] = m.group(1)
+        else:
+            # Bare https:// URL that isn't LinkedIn/GitHub
+            m = re.search(r'https?://(?!(?:www\.)?(linkedin|github))([A-Za-z0-9\-.]+\.[A-Za-z]{2,}(?:/[^\s]*)?)', text)
+            if m:
+                contact['website'] = m.group(0)
+
         return contact

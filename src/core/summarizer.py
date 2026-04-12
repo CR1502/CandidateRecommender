@@ -1,485 +1,322 @@
 """
-AI-powered summarization for candidate fit explanations.
+Candidate fit summarization via Ollama (free local LLM) with a deterministic
+template fallback when Ollama is not running.
+
+Setup:
+    1. Install Ollama: https://ollama.com
+    2. Pull a model: ollama pull llama3.2
+    3. Start the server: ollama serve  (runs automatically on macOS after install)
+
+Supported models (set OLLAMA_MODEL env var):
+    llama3.2     — 3B, fast, good quality (default)
+    mistral      — 7B, slower but noticeably better reasoning
+    phi3         — 3.8B, very capable for its size
+    gemma2       — 9B, strong analytical writing
 """
 
+import hashlib
+import re
 from typing import Dict, Any, List, Optional
-from transformers import T5ForConditionalGeneration, T5Tokenizer
-import torch
+
 from loguru import logger
+from .text_cleaner import TextCleaner
+
+_text_cleaner = TextCleaner()
+
+try:
+    import requests as _requests
+    _HAS_REQUESTS = True
+except ImportError:
+    _HAS_REQUESTS = False
 
 
 class CandidateSummarizer:
-    """Generate AI summaries explaining why candidates are good fits."""
-    
-    def __init__(self, model_name: str = "google/flan-t5-small"):
-        """
-        Initialize the summarizer with a local T5 model.
-        
-        Args:
-            model_name: Name of the T5 model to use
-        """
-        self.model_name = model_name
-        self.model = None
-        self.tokenizer = None
-        self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        self.max_length = 512
-        self.summary_length = 100
-        self._load_model()
-        
-    def _load_model(self) -> None:
-        """Load the T5 model and tokenizer."""
+    """
+    Generate concise, factual fit assessments for candidates.
+
+    Uses Ollama for LLM-backed summaries; falls back to a rule-based
+    (but deterministic) template when Ollama is unavailable.
+    """
+
+    def __init__(
+        self,
+        base_url: str = "http://localhost:11434",
+        model: str = "llama3.2",
+        timeout: int = 60,
+    ):
+        self.base_url = base_url.rstrip("/")
+        self.model = model
+        self.timeout = timeout
+        self._ollama_available = self._check_ollama()
+
+    # ------------------------------------------------------------------
+    # Ollama connectivity
+    # ------------------------------------------------------------------
+
+    def _check_ollama(self) -> bool:
+        if not _HAS_REQUESTS:
+            logger.warning("requests library not installed; Ollama summaries disabled")
+            return False
         try:
-            logger.info(f"Loading summarization model: {self.model_name}")
-            self.tokenizer = T5Tokenizer.from_pretrained(self.model_name)
-            self.model = T5ForConditionalGeneration.from_pretrained(self.model_name)
-            self.model.to(self.device)
-            self.model.eval()
-            logger.info(f"Summarization model loaded on {self.device}")
+            resp = _requests.get(f"{self.base_url}/api/tags", timeout=3)
+            if resp.status_code == 200:
+                models = [m["name"].split(":")[0] for m in resp.json().get("models", [])]
+                if self.model not in models:
+                    logger.warning(
+                        f"Ollama is running but model '{self.model}' is not pulled. "
+                        f"Run: ollama pull {self.model}"
+                    )
+                    return False
+                logger.info(f"Ollama available with model '{self.model}'")
+                return True
         except Exception as e:
-            logger.error(f"Failed to load summarization model: {e}")
-            # Fall back to template-based summaries
-            self.model = None
-            self.tokenizer = None
-    
+            logger.info(f"Ollama not reachable ({e}); using template summaries")
+        return False
+
+    def _call_ollama(self, prompt: str, num_predict: int = 300) -> str:
+        """POST to /api/generate and return the response text."""
+        resp = _requests.post(
+            f"{self.base_url}/api/generate",
+            json={
+                "model": self.model,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.2,
+                    "top_p": 0.9,
+                    "num_predict": num_predict,
+                },
+            },
+            timeout=self.timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()["response"].strip()
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
     def generate_fit_summary(
         self,
         job_description: str,
         resume_text: str,
-        similarity_score: float,
-        matching_skills: Optional[List[str]] = None
+        composite_score: float,
+        matching_skills: Optional[List[str]] = None,
+        skill_coverage: float = 0.0,
+        experience_score: float = 0.0,
+        enriched_context: str = "",
     ) -> str:
         """
-        Generate a summary explaining why the candidate is a good fit.
-        
+        Generate a detailed, evidence-based assessment of candidate fit.
+
         Args:
-            job_description: Job description text
-            resume_text: Resume text
-            similarity_score: Similarity score (0-1)
-            matching_skills: Optional list of matching skills
-            
+            job_description:   Full job description text.
+            resume_text:       Full resume text.
+            composite_score:   0–1 composite match score.
+            matching_skills:   Skills found in both JD and resume.
+            skill_coverage:    Fraction of required skills matched (0–1).
+            experience_score:  Experience heuristic score (0–1).
+            enriched_context:  Extra context from GitHub / portfolio URLs.
+
         Returns:
-            Generated summary text
+            Multi-sentence plain-text assessment.
         """
-        # If model is available, use AI generation
-        if self.model and self.tokenizer:
+        if self._ollama_available:
             try:
-                return self._generate_ai_summary(
-                    job_description, 
-                    resume_text, 
-                    similarity_score,
-                    matching_skills
+                return self._generate_ollama_summary(
+                    job_description, resume_text, composite_score,
+                    matching_skills, skill_coverage, experience_score,
+                    enriched_context,
                 )
             except Exception as e:
-                logger.warning(f"AI summary generation failed: {e}")
-                # Fall back to template
-        
-        # Use template-based summary as fallback
+                logger.warning(f"Ollama summary failed: {e}; falling back to template")
+
         return self._generate_template_summary(
-            job_description,
-            resume_text,
-            similarity_score,
-            matching_skills
+            job_description, resume_text, composite_score,
+            matching_skills, skill_coverage, experience_score,
+            enriched_context,
         )
-    
-    def _generate_ai_summary(
+
+    def batch_generate_summaries(
+        self,
+        candidates: List[Dict[str, Any]],
+        job_description: str,
+        enriched_contexts: Optional[Dict[str, str]] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Add a 'fit_summary' field to each candidate dict.
+
+        Args:
+            candidates:         Ranked candidate dicts.
+            job_description:    The job description text.
+            enriched_contexts:  Optional mapping of candidate_name → enriched
+                                context string (GitHub, portfolio, etc.).
+        """
+        enriched_contexts = enriched_contexts or {}
+        logger.info(f"Generating summaries for {len(candidates)} candidates")
+
+        for candidate in candidates:
+            name = candidate.get("candidate_name", "")
+            enriched = enriched_contexts.get(name, "")
+            try:
+                candidate["fit_summary"] = self.generate_fit_summary(
+                    job_description=job_description,
+                    resume_text=candidate["text"],
+                    composite_score=candidate.get("composite_score", 0.0),
+                    matching_skills=candidate.get("matching_skills"),
+                    skill_coverage=candidate.get("skill_coverage_score", 0.0),
+                    experience_score=candidate.get("experience_score", 0.0),
+                    enriched_context=enriched,
+                )
+            except Exception as e:
+                logger.error(f"Summary error for {name}: {e}")
+                pct = candidate.get("percentage_score", 0.0)
+                candidate["fit_summary"] = (
+                    f"Candidate scored {pct:.1f}% overall match with this role."
+                )
+
+        return candidates
+
+    # ------------------------------------------------------------------
+    # Ollama-backed generation
+    # ------------------------------------------------------------------
+
+    def _generate_ollama_summary(
         self,
         job_description: str,
         resume_text: str,
-        similarity_score: float,
-        matching_skills: Optional[List[str]] = None
+        composite_score: float,
+        matching_skills: Optional[List[str]],
+        skill_coverage: float,
+        experience_score: float,
+        enriched_context: str = "",
     ) -> str:
-        """
-        Generate AI-powered summary using T5 model.
-        
-        Args:
-            job_description: Job description text
-            resume_text: Resume text
-            similarity_score: Similarity score
-            matching_skills: Optional matching skills
-            
-        Returns:
-            AI-generated summary
-        """
-        # Truncate texts to fit model limits
-        job_desc_truncated = job_description[:500]
-        resume_truncated = resume_text[:500]
-        
-        # Create prompt
-        prompt = f"""
-        Task: Explain why this candidate is a good fit for the job in 2-3 sentences.
-        
-        Job requirements: {job_desc_truncated}
-        
-        Candidate background: {resume_truncated}
-        
-        Summary:
-        """
-        
-        # Tokenize input
-        inputs = self.tokenizer(
-            prompt,
-            max_length=self.max_length,
-            truncation=True,
-            padding=True,
-            return_tensors="pt"
-        ).to(self.device)
-        
-        # Generate summary
-        with torch.no_grad():
-            outputs = self.model.generate(
-                **inputs,
-                max_length=self.summary_length,
-                min_length=30,
-                temperature=0.7,
-                do_sample=True,
-                top_p=0.9,
-                num_beams=2
-            )
-        
-        # Decode output
-        summary = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        
-        # Clean up and enhance summary
-        if matching_skills and len(matching_skills) > 0:
-            skills_text = ", ".join(matching_skills[:3])
-            summary += f" Key matching skills include {skills_text}."
-        
-        return summary.strip()
-    
+        jd_snippet = job_description[:550]
+        cv_snippet = resume_text[:1000]
+        pct = composite_score * 100
+
+        skills_line = (
+            f"\nVerified matching skills: {', '.join(matching_skills[:12])}."
+            if matching_skills else ""
+        )
+        enrichment_section = (
+            f"\n\n--- Additional context from candidate's online presence ---\n{enriched_context[:900]}"
+            if enriched_context else ""
+        )
+
+        prompt = f"""You are a senior technical recruiter writing a detailed, evidence-based candidate assessment report.
+
+JOB DESCRIPTION:
+{jd_snippet}
+
+CANDIDATE RESUME:
+{cv_snippet}{enrichment_section}
+
+MATCH DATA:
+- Overall score: {pct:.1f}%
+- Skill coverage: {skill_coverage * 100:.0f}% of required skills found
+- Experience alignment: {experience_score * 100:.0f}%{skills_line}
+
+Write a 4–5 sentence assessment. Requirements:
+1. Name specific technologies, companies, projects, or achievements from the candidate's background — do not speak in generalities
+2. Explain precisely how their experience maps to the job requirements (what fits, what doesn't)
+3. If GitHub or portfolio data was provided, cite specific repositories or projects that are relevant
+4. Identify the single most important gap or question to probe in an interview (if any)
+5. End with a hiring recommendation on its own line: "Recommendation: Strong Yes", "Recommendation: Yes", "Recommendation: Maybe", or "Recommendation: No" — followed by a single sentence explaining why
+
+Do not use filler phrases like "strong candidate" or "great fit" unless you back them with specific evidence. Write in plain prose, no bullet points."""
+
+        return self._call_ollama(prompt, num_predict=400)
+
+    # ------------------------------------------------------------------
+    # Template fallback (deterministic)
+    # ------------------------------------------------------------------
+
     def _generate_template_summary(
         self,
         job_description: str,
         resume_text: str,
-        similarity_score: float,
-        matching_skills: Optional[List[str]] = None
+        composite_score: float,
+        matching_skills: Optional[List[str]],
+        skill_coverage: float,
+        experience_score: float,
+        enriched_context: str = "",
     ) -> str:
         """
-        Generate diverse, contextual summaries as fallback.
-        
-        Args:
-            job_description: Job description text
-            resume_text: Resume text
-            similarity_score: Similarity score
-            matching_skills: Optional matching skills
-            
-        Returns:
-            Contextually rich summary
+        Build a factual summary from extracted signals.
+        Output is deterministic — same inputs always produce the same summary.
         """
-        from .text_cleaner import TextCleaner
-        import random
-        import re
-        
-        cleaner = TextCleaner()
-        
-        # Extract skills if not provided
+        cleaner = _text_cleaner
+
         if not matching_skills:
             job_skills = set(cleaner.extract_key_skills(job_description))
             resume_skills = set(cleaner.extract_key_skills(resume_text))
-            matching_skills = list(job_skills & resume_skills)
-        
-        # Analyze resume for experience indicators
-        years_pattern = r'(\d+)\+?\s*years?'
-        years_matches = re.findall(years_pattern, resume_text.lower())
-        max_years = max([int(y) for y in years_matches], default=0)
-        
-        # Check for leadership/senior indicators
-        leadership_keywords = ['lead', 'senior', 'manager', 'head', 'director', 'principal', 'architect']
-        has_leadership = any(keyword in resume_text.lower() for keyword in leadership_keywords)
-        
-        # Check for education level
-        has_masters = 'master' in resume_text.lower() or 'mba' in resume_text.lower()
-        has_phd = 'phd' in resume_text.lower() or 'ph.d' in resume_text.lower() or 'doctorate' in resume_text.lower()
-        
-        # Analyze job requirements
-        job_lower = job_description.lower()
-        needs_ml = any(term in job_lower for term in ['machine learning', 'ml', 'ai', 'deep learning', 'neural'])
-        needs_cloud = any(term in job_lower for term in ['aws', 'azure', 'gcp', 'cloud', 'kubernetes', 'docker'])
-        needs_backend = any(term in job_lower for term in ['backend', 'api', 'microservice', 'database', 'server'])
-        needs_frontend = any(term in job_lower for term in ['frontend', 'react', 'angular', 'vue', 'ui/ux'])
-        
-        # Build diverse summaries based on score and context
-        if similarity_score >= 0.9:  # Perfect Match
-            templates = [
-                f"🌟 PERFECT MATCH: With {max_years}+ years of directly relevant experience and expertise in {', '.join(matching_skills[:3]) if matching_skills else 'all key areas'}, this candidate exceeds all requirements. {self._get_strength_statement(matching_skills, needs_ml, needs_cloud, has_leadership)}",
-                f"🌟 EXCEPTIONAL FIT: This candidate's profile surpasses expectations in every dimension. {self._get_experience_highlight(max_years, has_leadership, has_masters, has_phd)} Their expertise precisely matches your needs - immediate impact guaranteed.",
-                f"🌟 TOP TIER: Outstanding candidate who not only meets but exceeds requirements. {self._get_unique_value_prop(matching_skills, max_years, has_leadership, needs_ml, needs_cloud)} This is the caliber of talent that transforms teams.",
-                f"🌟 RARE FIND: Near-perfect alignment with {len(matching_skills)} matching skills and {max_years if max_years else 'extensive'} years of relevant experience. This candidate represents exactly what you're looking for and more.",
-            ]
-        elif similarity_score >= 0.7:  # Ideal Candidate
-            templates = [
-                f"⭐ Ideal candidate with {max_years if max_years else 'solid'} years in {', '.join(matching_skills[:3]) if matching_skills else 'relevant technologies'}. {self._get_strength_statement(matching_skills, needs_ml, needs_cloud, has_leadership)} Strong recommendation for interview.",
-                f"⭐ Excellent match bringing proven expertise and the right skill mix. {self._get_experience_highlight(max_years, has_leadership, has_masters, has_phd)} Would integrate seamlessly with your team.",
-                f"⭐ This candidate ticks all the major boxes with particular strength in {', '.join(matching_skills[:2]) if matching_skills else 'core requirements'}. {self._get_fit_assessment(similarity_score, max_years, has_leadership)}",
-                f"⭐ Highly qualified professional whose background aligns beautifully with your needs. {self._get_unique_value_prop(matching_skills, max_years, has_leadership, needs_ml, needs_cloud)}",
-            ]
-        elif similarity_score >= 0.5:  # Good Candidate
-            templates = [
-                f"Good candidate with relevant experience in {', '.join(matching_skills[:3]) if matching_skills else 'key areas'}. {self._get_growth_statement(max_years, has_leadership)} Would be a solid addition to the team.",
-                f"Well-positioned candidate whose background in {self._get_skill_area(matching_skills, needs_ml, needs_backend)} provides good foundation. {self._get_potential_statement(has_masters, max_years)}",
-                f"This candidate brings valuable expertise with {max_years if max_years > 0 else 'relevant'} years of experience. {self._get_transferable_skills(matching_skills, needs_ml, needs_cloud)} Worth interviewing.",
-                f"Solid professional with competencies that align well with core requirements. {self._get_fit_assessment(similarity_score, max_years, has_leadership)}",
-            ]
-        elif similarity_score >= 0.2:  # Okay Candidate
-            templates = [
-                f"Candidate with foundational skills in {', '.join(matching_skills[:2]) if matching_skills else 'some relevant areas'}. {self._get_development_potential(max_years, has_masters)} Could grow into the role with support.",
-                f"Shows potential with experience in {self._get_relevant_areas(matching_skills, resume_text)}. Would require some training but has the basics covered.",
-                f"This profile offers transferable skills that could adapt to your needs. {self._get_adjacent_experience(matching_skills, max_years)} Consider if looking to train and develop talent.",
-                f"Has relevant background though not a direct match. {self._get_growth_trajectory(has_leadership, max_years, matching_skills)} Could be viable for junior position or with mentorship.",
-            ]
-        else:  # Not Recommended (below 20%)
-            templates = [
-                f"Limited alignment with core requirements. {self._get_potential_indicator(matching_skills, has_masters)} Would need significant training and development.",
-                f"Background doesn't strongly match current needs. {self._get_transferable_value(matching_skills, max_years)} Consider only if open to major skill development.",
-                f"Minimal overlap with job requirements. {self._get_learning_potential(has_masters, has_phd, max_years)} Not recommended for this specific role.",
-                f"Skills and experience don't align well with position needs. {self._get_unique_angle(matching_skills, resume_text)} Better suited for different role.",
-            ]
-        
-        # Select random template for diversity
-        summary = random.choice(templates)
-        
-        # Add a contextual closing if appropriate
-        if similarity_score >= 0.7 and random.random() > 0.5:
-            closings = [
-                " Highly recommend scheduling an interview.",
-                " Definitely worth a conversation.",
-                " Strong potential for immediate impact.",
-                " Could contribute from day one.",
-            ]
-            summary += random.choice(closings)
-        
-        return summary
-    
-    def batch_generate_summaries(
-        self,
-        candidates: List[Dict[str, Any]],
-        job_description: str
-    ) -> List[Dict[str, Any]]:
-        """
-        Generate summaries for multiple candidates.
-        
-        Args:
-            candidates: List of candidate dictionaries
-            job_description: Job description text
-            
-        Returns:
-            Updated candidates with summaries
-        """
-        logger.info(f"Generating summaries for {len(candidates)} candidates")
-        
-        for candidate in candidates:
-            try:
-                # Generate summary
-                summary = self.generate_fit_summary(
-                    job_description,
-                    candidate['text'],
-                    candidate['similarity_score'],
-                    candidate.get('matching_skills')
-                )
-                candidate['fit_summary'] = summary
-                
-            except Exception as e:
-                logger.error(f"Error generating summary for {candidate['candidate_name']}: {e}")
-                candidate['fit_summary'] = (
-                    f"Candidate shows {candidate['percentage_score']:.1f}% match "
-                    f"with the job requirements based on resume analysis."
-                )
-        
-        return candidates
-    
-    # Helper methods for diverse summary generation
-    def _get_strength_statement(self, skills, needs_ml, needs_cloud, has_leadership):
-        """Generate strength-based statement."""
-        import random
-        if needs_ml and any('learning' in s.lower() or 'ai' in s.lower() for s in skills):
-            return "Deep ML expertise combined with production deployment experience makes them ideal for your AI initiatives."
-        elif needs_cloud and any('aws' in s.lower() or 'cloud' in s.lower() for s in skills):
-            return "Proven cloud architecture skills with hands-on experience scaling distributed systems."
-        elif has_leadership:
-            return "Leadership experience combined with technical depth enables them to drive projects end-to-end."
+            matching_skills = sorted(job_skills & resume_skills)
+
+        # Extract years of experience from resume
+        years_matches = re.findall(r'(\d+)\+?\s*years?', resume_text, re.IGNORECASE)
+        max_years = max((int(y) for y in years_matches), default=0)
+
+        # Seniority signals
+        seniority_words = ['senior', 'lead', 'principal', 'staff', 'architect',
+                           'manager', 'director', 'head of', 'vp ', 'vice president']
+        is_senior = any(w in resume_text.lower() for w in seniority_words)
+
+        # Education signals
+        has_phd = bool(re.search(r'\bph\.?d\b|doctorate', resume_text, re.IGNORECASE))
+        has_masters = bool(re.search(r"\bmaster'?s?\b|\bmsc\b|\bmba\b", resume_text, re.IGNORECASE))
+
+        pct = composite_score * 100
+
+        # --- Build sentences deterministically ---
+
+        # Sentence 1: overall fit statement
+        if pct >= 85:
+            s1 = "This candidate is an excellent fit for the role."
+        elif pct >= 70:
+            s1 = "This candidate is a strong match for the role."
+        elif pct >= 50:
+            s1 = "This candidate meets the core requirements of the role."
+        elif pct >= 25:
+            s1 = "This candidate partially aligns with the role requirements."
         else:
-            return "Technical proficiency across the full stack with particular strength in implementation and delivery."
-    
-    def _get_experience_highlight(self, years, has_leadership, has_masters, has_phd):
-        """Highlight experience and education."""
+            s1 = "This candidate has limited alignment with the role requirements."
+
+        # Sentence 2: skills and experience
         parts = []
+        if matching_skills:
+            skills_str = ", ".join(matching_skills[:4])
+            parts.append(f"matching skills in {skills_str}")
+        if max_years > 0:
+            level = "extensive" if max_years >= 8 else ("solid" if max_years >= 4 else "some")
+            parts.append(f"{level} experience ({max_years}+ years)")
+        elif is_senior:
+            parts.append("senior-level background")
         if has_phd:
-            parts.append("PhD-level expertise")
+            parts.append("PhD-level education")
         elif has_masters:
-            parts.append("Advanced degree")
-        if years > 7:
-            parts.append(f"{years}+ years of progressive experience")
-        elif years > 0:
-            parts.append(f"{years} years of hands-on experience")
-        if has_leadership:
-            parts.append("proven leadership")
-        
+            parts.append("advanced degree")
+
         if parts:
-            return "Brings " + " with ".join(parts) + "."
-        return "Brings relevant industry experience."
-    
-    def _get_skills_statement(self, skills):
-        """Create skills-focused statement."""
-        import random
-        if len(skills) > 5:
-            return f"Comprehensive skill set spanning {len(skills)} key technologies your team uses."
-        elif len(skills) > 2:
-            return f"Proficiency in critical areas including {', '.join(skills[:3])}."
-        elif skills:
-            return f"Relevant expertise in {' and '.join(skills)}."
-        return "Transferable skills that align with role requirements."
-    
-    def _get_experience_descriptor(self, years, has_leadership):
-        """Describe experience level."""
-        if years > 10:
-            return "decade+ of industry expertise"
-        elif years > 5:
-            return f"{years} years of progressive technical growth"
-        elif has_leadership:
-            return "leadership experience and technical acumen"
+            s2 = "They bring " + ", and ".join(parts) + "."
         else:
-            return "solid technical foundation"
-    
-    def _get_unique_value_prop(self, skills, years, has_leadership, needs_ml, needs_cloud):
-        """Generate unique value proposition."""
-        import random
-        props = []
-        if needs_ml and any('learning' in s.lower() for s in skills):
-            props.append("Combines ML expertise with production engineering skills")
-        if needs_cloud and any('cloud' in s.lower() or 'aws' in s.lower() for s in skills):
-            props.append("Cloud-native development experience at scale")
-        if years > 5:
-            props.append(f"Battle-tested through {years}+ years of real-world challenges")
-        if has_leadership:
-            props.append("Natural leader who can mentor and grow the team")
-        
-        if props:
-            return random.choice(props) + "."
-        return "Brings a unique combination of technical skills and practical experience."
-    
-    def _get_growth_statement(self, years, has_leadership):
-        """Statement about growth potential."""
-        if has_leadership:
-            return "Track record of taking ownership and delivering results."
-        elif years > 3:
-            return "Consistent career progression demonstrates adaptability and learning agility."
+            s2 = "Their background shows general technical competence."
+
+        # Sentence 3: gap analysis or recommendation
+        if pct >= 70:
+            s3 = "Recommend for interview."
+        elif pct >= 50:
+            skill_gap = round((1.0 - skill_coverage) * 100)
+            if skill_gap > 30:
+                s3 = f"Around {skill_gap}% of required skills were not found — worth discussing in a screen."
+            else:
+                s3 = "Minor skill gaps; worth a screening conversation."
+        elif pct >= 25:
+            s3 = "Significant skill gaps exist; consider only if open to training investment."
         else:
-            return "Shows strong potential for growth within the role."
-    
-    def _get_skill_area(self, skills, needs_ml, needs_backend):
-        """Identify primary skill area."""
-        if needs_ml and skills:
-            return "machine learning and data engineering"
-        elif needs_backend and skills:
-            return "backend development and system design"
-        elif len(skills) > 2:
-            return f"{skills[0]} and {skills[1]}"
-        elif skills:
-            return skills[0]
-        return "software development"
-    
-    def _get_potential_statement(self, has_masters, years):
-        """Statement about potential."""
-        if has_masters:
-            return "Advanced education provides strong theoretical foundation for complex problem-solving."
-        elif years > 5:
-            return "Seasoned professional ready to take on new challenges."
-        else:
-            return "Demonstrates commitment to continuous learning and improvement."
-    
-    def _get_fit_assessment(self, score, years, has_leadership):
-        """Assess fit level."""
-        if score > 0.7:
-            return f"With {years if years else 'relevant'} years experience, they're ready to contribute immediately."
-        elif has_leadership:
-            return "Leadership experience suggests ability to work independently and drive initiatives."
-        else:
-            return "Shows promise for success in this role with minimal ramp-up time."
-    
-    def _get_transferable_skills(self, skills, needs_ml, needs_cloud):
-        """Identify transferable skills."""
-        if skills and len(skills) > 2:
-            return f"Skills in {', '.join(skills[:2])} directly transfer to your tech stack."
-        elif needs_ml:
-            return "Analytical mindset and problem-solving skills align with ML requirements."
-        elif needs_cloud:
-            return "Understanding of distributed systems translates well to cloud architecture."
-        else:
-            return "Core competencies provide solid foundation for role-specific growth."
-    
-    def _get_development_potential(self, years, has_masters):
-        """Assess development potential."""
-        if has_masters:
-            return "Advanced degree indicates strong learning capacity and theoretical knowledge."
-        elif years > 2:
-            return f"With {years} years of experience, has demonstrated ability to grow and adapt."
-        else:
-            return "Shows enthusiasm and readiness to develop deeper expertise."
-    
-    def _get_relevant_areas(self, skills, resume_text):
-        """Find relevant areas from resume."""
-        if skills and len(skills) >= 2:
-            return f"{skills[0]} and {skills[1]}"
-        elif 'python' in resume_text.lower():
-            return "Python development"
-        elif 'java' in resume_text.lower():
-            return "Java development"
-        else:
-            return "software development"
-    
-    def _get_adjacent_experience(self, skills, years):
-        """Describe adjacent experience."""
-        if years > 3:
-            return f"While coming from a slightly different background, {years} years of technical experience provides valuable perspective."
-        elif skills:
-            return f"Experience with {skills[0] if skills else 'related technologies'} demonstrates technical aptitude."
-        else:
-            return "Technical background in related areas shows adaptability."
-    
-    def _get_growth_trajectory(self, has_leadership, years, skills):
-        """Describe growth trajectory."""
-        if has_leadership:
-            return "Leadership experience indicates high potential for growth into senior roles."
-        elif years > 2 and skills:
-            return f"Steady skill development in {len(skills)} technologies shows commitment to learning."
-        else:
-            return "Early career professional with room to grow into the role."
-    
-    def _get_potential_indicator(self, skills, has_masters):
-        """Indicate potential despite lower match."""
-        if has_masters:
-            return "strong academic foundation and learning ability"
-        elif skills and len(skills) > 1:
-            return f"aptitude in {skills[0]} that could extend to your requirements"
-        else:
-            return "potential for development with proper mentorship"
-    
-    def _get_transferable_value(self, skills, years):
-        """Identify transferable value."""
-        if years > 5:
-            return f"Brings {years} years of professional experience with transferable problem-solving skills."
-        elif skills:
-            return f"Knowledge of {skills[0] if skills else 'technology'} provides starting point for role-specific training."
-        else:
-            return "Fresh perspective could benefit team diversity."
-    
-    def _get_learning_potential(self, has_masters, has_phd, years):
-        """Assess learning potential."""
-        if has_phd:
-            return "PhD demonstrates exceptional research and learning capabilities."
-        elif has_masters:
-            return "Graduate education shows ability to master complex concepts."
-        elif years > 0:
-            return f"Has shown ability to acquire skills over {years} years in industry."
-        else:
-            return "Entry-level enthusiasm with strong potential for development."
-    
-    def _get_unique_angle(self, skills, resume_text):
-        """Find unique angle for low-match candidates."""
-        if 'startup' in resume_text.lower():
-            return "Startup experience brings agility and versatility."
-        elif 'enterprise' in resume_text.lower():
-            return "Enterprise experience provides understanding of scale and process."
-        elif skills:
-            return f"Background in {skills[0] if skills else 'technology'} offers fresh perspective."
-        else:
-            return "Different background could bring innovative approaches to problems."
+            s3 = "Not recommended for this role."
+
+        summary = f"{s1} {s2} {s3}"
+        if enriched_context:
+            summary += " Additional context from online profiles is available but requires Ollama for full analysis."
+        return summary

@@ -26,11 +26,11 @@ class FileProcessor:
 
     def process_file(self, file_obj: Any, filename: str) -> Tuple[str, str]:
         """
-        Process uploaded file and extract text.
+        Process an uploaded file and extract text.
 
         Args:
-            file_obj: File object from Streamlit uploader
-            filename: Name of the file
+            file_obj: File-like object (must support seek/read/tell)
+            filename: Original filename (used to determine format)
 
         Returns:
             Tuple of (extracted_text, candidate_name)
@@ -160,8 +160,8 @@ class FileProcessor:
             try:
                 file_obj.seek(0)
                 return file_obj.read().decode('utf-8', errors='ignore')
-            except:
-                raise ValueError(f"Failed to extract text from TXT: {str(e)}")
+            except Exception:
+                raise ValueError(f"Failed to extract text from TXT: {str(e)}") from e
 
     def process_multiple_files(self, files: List[Any]) -> List[Dict[str, Any]]:
         """
