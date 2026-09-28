@@ -55,12 +55,14 @@ def _run_ranking_sync(
             if not raw_text or len(raw_text.strip()) < 50:
                 logger.warning(f"Skipping {filename}: extracted text too short")
                 continue
-            resumes.append({
-                "filename": filename,
-                "candidate_name": candidate_name,
-                "raw_text": raw_text,
-                "text": _text_cleaner.prepare_for_embedding(raw_text),
-            })
+            resumes.append(
+                {
+                    "filename": filename,
+                    "candidate_name": candidate_name,
+                    "raw_text": raw_text,
+                    "text": _text_cleaner.prepare_for_embedding(raw_text),
+                }
+            )
         except Exception as e:
             logger.error(f"Failed to process {filename}: {e}")
 
@@ -85,18 +87,22 @@ def _run_ranking_sync(
     # Both sides use the same extraction method so the intersection is meaningful.
     use_llm_skills = summarizer._ollama_available
     if use_llm_skills:
-        jd_skills = set(_text_cleaner.extract_skills_with_llm(
-            clean_jd, base_url=OLLAMA_BASE_URL, model=OLLAMA_MODEL
-        ))
+        jd_skills = set(
+            _text_cleaner.extract_skills_with_llm(
+                clean_jd, base_url=OLLAMA_BASE_URL, model=OLLAMA_MODEL
+            )
+        )
     else:
         jd_skills = set(_text_cleaner.extract_key_skills(clean_jd))
 
     for candidate in ranked:
         raw = candidate.get("raw_text", candidate["text"])
         if use_llm_skills:
-            resume_skills = set(_text_cleaner.extract_skills_with_llm(
-                raw, base_url=OLLAMA_BASE_URL, model=OLLAMA_MODEL
-            ))
+            resume_skills = set(
+                _text_cleaner.extract_skills_with_llm(
+                    raw, base_url=OLLAMA_BASE_URL, model=OLLAMA_MODEL
+                )
+            )
         else:
             resume_skills = set(_text_cleaner.extract_key_skills(raw))
         candidate["matching_skills"] = sorted(jd_skills & resume_skills)
@@ -114,8 +120,7 @@ def _run_ranking_sync(
         if ctx:
             candidate["enriched_context"] = ctx
             logger.info(
-                f"Enriched {candidate['candidate_name']} "
-                f"({len(ctx)} chars from online profiles)"
+                f"Enriched {candidate['candidate_name']} ({len(ctx)} chars from online profiles)"
             )
 
     # --- 6. Summaries (with enriched context) ---
@@ -172,9 +177,7 @@ def _run_extract_sync(filename: str, content: bytes) -> ExtractResponse:
 
 async def run_extract_pipeline(file: UploadFile) -> ExtractResponse:
     content = await file.read()
-    return await asyncio.to_thread(
-        _run_extract_sync, file.filename or "upload", content
-    )
+    return await asyncio.to_thread(_run_extract_sync, file.filename or "upload", content)
 
 
 def _to_candidate_result(c: dict) -> CandidateResult:

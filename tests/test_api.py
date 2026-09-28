@@ -58,7 +58,14 @@ def test_health(client):
 
 def test_rank_reports_all_processed_files_not_just_top_k(client):
     files = [
-        ("files", (f"candidate_{i}.txt", _resume(f"Person {i}", "Python and Docker, 6 years."), "text/plain"))
+        (
+            "files",
+            (
+                f"candidate_{i}.txt",
+                _resume(f"Person {i}", "Python and Docker, 6 years."),
+                "text/plain",
+            ),
+        )
         for i in range(3)
     ]
     resp = client.post("/api/rank", data={"job_description": JOB, "top_k": 2}, files=files)
@@ -86,8 +93,10 @@ def test_rank_with_only_unreadable_files_returns_422_detail(client):
 
 def test_extract(client):
     content = b"Jane Doe\njane@example.com\nSkills: Python, Docker, Kubernetes\n"
-    with patch("candidate_recommender.core.text_cleaner.TextCleaner.extract_skills_with_llm",
-               lambda self, text, **kw: self.extract_key_skills(text)):
+    with patch(
+        "candidate_recommender.core.text_cleaner.TextCleaner.extract_skills_with_llm",
+        lambda self, text, **kw: self.extract_key_skills(text),
+    ):
         resp = client.post("/api/extract", files={"file": ("jane_doe.txt", content, "text/plain")})
 
     assert resp.status_code == 200, resp.text

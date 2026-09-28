@@ -50,22 +50,24 @@ class FileProcessor:
             file_obj.seek(0)  # Reset to beginning
 
             if file_size > self.max_file_size_bytes:
-                raise ValueError(f"File size exceeds {self.max_file_size_bytes / (1024 * 1024)}MB limit")
+                raise ValueError(
+                    f"File size exceeds {self.max_file_size_bytes / (1024 * 1024)}MB limit"
+                )
             if file_size == 0:
                 raise ValueError("File is empty")
 
             # Get file extension
-            file_ext = filename.rsplit('.', 1)[-1].lower()
+            file_ext = filename.rsplit(".", 1)[-1].lower()
 
             if file_ext not in self.supported_formats:
                 raise ValueError(f"Unsupported file format: {file_ext}")
 
             # Extract text based on file type
-            if file_ext == 'pdf':
+            if file_ext == "pdf":
                 text = self._extract_from_pdf(file_obj)
-            elif file_ext == 'docx':
+            elif file_ext == "docx":
                 text = self._extract_from_docx(file_obj)
-            elif file_ext == 'txt':
+            elif file_ext == "txt":
                 text = self._extract_from_txt(file_obj)
             else:
                 raise ValueError(f"Unsupported file format: {file_ext}")
@@ -100,7 +102,7 @@ class FileProcessor:
                 if text:
                     text_parts.append(text)
 
-            return '\n'.join(text_parts)
+            return "\n".join(text_parts)
 
         except Exception as e:
             logger.error(f"Error extracting text from PDF: {e}")
@@ -131,7 +133,7 @@ class FileProcessor:
                         if cell.text.strip():
                             text_parts.append(cell.text)
 
-            return '\n'.join(text_parts)
+            return "\n".join(text_parts)
 
         except Exception as e:
             logger.error(f"Error extracting text from DOCX: {e}")
@@ -153,10 +155,10 @@ class FileProcessor:
 
             # Detect encoding
             result = chardet.detect(raw_data)
-            encoding = result['encoding'] or 'utf-8'
+            encoding = result["encoding"] or "utf-8"
 
             # Decode text
-            text = raw_data.decode(encoding, errors='ignore')
+            text = raw_data.decode(encoding, errors="ignore")
             return text
 
         except Exception as e:
@@ -164,7 +166,7 @@ class FileProcessor:
             # Fallback to UTF-8
             try:
                 file_obj.seek(0)
-                return file_obj.read().decode('utf-8', errors='ignore')
+                return file_obj.read().decode("utf-8", errors="ignore")
             except Exception:
                 raise ValueError(f"Failed to extract text from TXT: {str(e)}") from e
 
@@ -183,20 +185,24 @@ class FileProcessor:
         for file_obj in files:
             try:
                 text, candidate_name = self.process_file(file_obj, file_obj.name)
-                results.append({
-                    'filename': file_obj.name,
-                    'candidate_name': candidate_name,
-                    'text': text,
-                    'error': None
-                })
+                results.append(
+                    {
+                        "filename": file_obj.name,
+                        "candidate_name": candidate_name,
+                        "text": text,
+                        "error": None,
+                    }
+                )
             except Exception as e:
                 logger.error(f"Failed to process {file_obj.name}: {e}")
-                results.append({
-                    'filename': file_obj.name,
-                    'candidate_name': None,
-                    'text': None,
-                    'error': str(e)
-                })
+                results.append(
+                    {
+                        "filename": file_obj.name,
+                        "candidate_name": None,
+                        "text": None,
+                        "error": str(e),
+                    }
+                )
 
         return results
 
@@ -212,9 +218,12 @@ class FileProcessor:
             Tuple of (is_valid, error_message)
         """
         # Check file extension
-        file_ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
+        file_ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
         if file_ext not in self.supported_formats:
-            return False, f"Unsupported file type: {file_ext}. Supported: {', '.join(self.supported_formats)}"
+            return (
+                False,
+                f"Unsupported file type: {file_ext}. Supported: {', '.join(self.supported_formats)}",
+            )
 
         # Check file size
         file_obj.seek(0, 2)
@@ -222,7 +231,10 @@ class FileProcessor:
         file_obj.seek(0)
 
         if file_size > self.max_file_size_bytes:
-            return False, f"File too large: {file_size / (1024 * 1024):.1f}MB. Maximum: {self.max_file_size_bytes / (1024 * 1024)}MB"
+            return (
+                False,
+                f"File too large: {file_size / (1024 * 1024):.1f}MB. Maximum: {self.max_file_size_bytes / (1024 * 1024)}MB",
+            )
 
         if file_size == 0:
             return False, "File is empty"

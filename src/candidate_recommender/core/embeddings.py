@@ -21,7 +21,7 @@ _text_cleaner = TextCleaner()
 # "5 years", "5+ yrs", "3-5 years", "3 to 5 years". Group 1 is the lower bound,
 # group 2 the optional upper bound of a range.
 _YEARS_PATTERN = re.compile(
-    r'(\d{1,2})\+?(?:\s*(?:-|–|—|to)\s*(\d{1,2})\+?)?\s*(?:years?|yrs?)\b',
+    r"(\d{1,2})\+?(?:\s*(?:-|–|—|to)\s*(\d{1,2})\+?)?\s*(?:years?|yrs?)\b",
     re.IGNORECASE,
 )
 _MAX_PLAUSIBLE_YEARS = 50  # ignores "100 years of history" style numbers
@@ -95,9 +95,7 @@ class EmbeddingEngine:
             normalize_embeddings=True,  # L2-normalise so dot product == cosine
         )
 
-    def generate_embeddings_batch(
-        self, texts: list[str], is_query: bool = False
-    ) -> np.ndarray:
+    def generate_embeddings_batch(self, texts: list[str], is_query: bool = False) -> np.ndarray:
         """Generate embeddings for a list of texts in one batched call."""
         valid = [t for t in texts if t and t.strip()]
         if not valid:
@@ -119,9 +117,7 @@ class EmbeddingEngine:
     # Scoring helpers
     # ------------------------------------------------------------------
 
-    def _skill_coverage_score(
-        self, job_text: str, resume_text: str
-    ) -> float:
+    def _skill_coverage_score(self, job_text: str, resume_text: str) -> float:
         """
         Fraction of required job skills that appear in the resume.
         Returns 0.0–1.0.
@@ -173,11 +169,7 @@ class EmbeddingEngine:
     ) -> float:
         """Combine semantic, skill coverage, and experience into one score."""
         w = self.scoring_weights
-        score = (
-            w["semantic"] * semantic
-            + w["skill_coverage"] * skill
-            + w["experience"] * exp
-        )
+        score = w["semantic"] * semantic + w["skill_coverage"] * skill + w["experience"] * exp
         return float(min(max(score, 0.0), 1.0))
 
     # ------------------------------------------------------------------
@@ -188,18 +180,14 @@ class EmbeddingEngine:
     def _text_hash(text: str) -> str:
         return hashlib.md5(text.strip().encode()).hexdigest()
 
-    def _deduplicate(
-        self, resumes: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def _deduplicate(self, resumes: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Remove duplicate resumes (same content hash). Keeps first occurrence."""
         seen: set = set()
         unique = []
         for r in resumes:
             h = self._text_hash(r.get("text", ""))
             if h in seen:
-                logger.warning(
-                    f"Duplicate resume detected and removed: {r.get('filename', '?')}"
-                )
+                logger.warning(f"Duplicate resume detected and removed: {r.get('filename', '?')}")
             else:
                 seen.add(h)
                 unique.append(r)
@@ -254,18 +242,20 @@ class EmbeddingEngine:
 
             category, emoji, color = self._classify(pct)
 
-            results.append({
-                **resume,
-                "similarity_score": float(sem_score),
-                "skill_coverage_score": round(skill_cov, 3),
-                "experience_score": round(exp_sig, 3),
-                "composite_score": round(composite, 4),
-                "percentage_score": round(pct, 1),
-                "category": category,
-                "category_emoji": emoji,
-                "category_color": color,
-                "rank": 0,  # set after sort
-            })
+            results.append(
+                {
+                    **resume,
+                    "similarity_score": float(sem_score),
+                    "skill_coverage_score": round(skill_cov, 3),
+                    "experience_score": round(exp_sig, 3),
+                    "composite_score": round(composite, 4),
+                    "percentage_score": round(pct, 1),
+                    "category": category,
+                    "category_emoji": emoji,
+                    "category_color": color,
+                    "rank": 0,  # set after sort
+                }
+            )
 
         # Stable sort: composite desc, then original index as tiebreaker
         for i, r in enumerate(results):

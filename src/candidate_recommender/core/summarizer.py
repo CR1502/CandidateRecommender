@@ -25,6 +25,7 @@ _text_cleaner = TextCleaner()
 
 try:
     import requests as _requests
+
     _HAS_REQUESTS = True
 except ImportError:
     _HAS_REQUESTS = False
@@ -124,16 +125,24 @@ class CandidateSummarizer:
         if self._ollama_available:
             try:
                 return self._generate_ollama_summary(
-                    job_description, resume_text, composite_score,
-                    matching_skills, skill_coverage, experience_score,
+                    job_description,
+                    resume_text,
+                    composite_score,
+                    matching_skills,
+                    skill_coverage,
+                    experience_score,
                     enriched_context,
                 )
             except Exception as e:
                 logger.warning(f"Ollama summary failed: {e}; falling back to template")
 
         return self._generate_template_summary(
-            job_description, resume_text, composite_score,
-            matching_skills, skill_coverage, experience_score,
+            job_description,
+            resume_text,
+            composite_score,
+            matching_skills,
+            skill_coverage,
+            experience_score,
             enriched_context,
         )
 
@@ -199,11 +208,13 @@ class CandidateSummarizer:
 
         skills_line = (
             f"\nVerified matching skills: {', '.join(matching_skills[:12])}."
-            if matching_skills else ""
+            if matching_skills
+            else ""
         )
         enrichment_section = (
             f"\n\n--- Additional context from candidate's online presence ---\n{enriched_context[:900]}"
-            if enriched_context else ""
+            if enriched_context
+            else ""
         )
 
         prompt = f"""You are a senior technical recruiter writing a detailed, evidence-based candidate assessment report.
@@ -256,16 +267,26 @@ Do not use filler phrases like "strong candidate" or "great fit" unless you back
             matching_skills = sorted(job_skills & resume_skills)
 
         # Extract years of experience from resume
-        years_matches = re.findall(r'(\d+)\+?\s*years?', resume_text, re.IGNORECASE)
+        years_matches = re.findall(r"(\d+)\+?\s*years?", resume_text, re.IGNORECASE)
         max_years = max((int(y) for y in years_matches), default=0)
 
         # Seniority signals
-        seniority_words = ['senior', 'lead', 'principal', 'staff', 'architect',
-                           'manager', 'director', 'head of', 'vp ', 'vice president']
+        seniority_words = [
+            "senior",
+            "lead",
+            "principal",
+            "staff",
+            "architect",
+            "manager",
+            "director",
+            "head of",
+            "vp ",
+            "vice president",
+        ]
         is_senior = any(w in resume_text.lower() for w in seniority_words)
 
         # Education signals
-        has_phd = bool(re.search(r'\bph\.?d\b|doctorate', resume_text, re.IGNORECASE))
+        has_phd = bool(re.search(r"\bph\.?d\b|doctorate", resume_text, re.IGNORECASE))
         has_masters = bool(re.search(r"\bmaster'?s?\b|\bmsc\b|\bmba\b", resume_text, re.IGNORECASE))
 
         pct = composite_score * 100

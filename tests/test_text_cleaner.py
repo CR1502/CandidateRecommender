@@ -13,25 +13,28 @@ def cleaner():
 
 
 class TestSkillExtraction:
-    @pytest.mark.parametrize("text, skill", [
-        ("Senior C++ developer", "C++"),
-        ("Worked in C# and .NET", "C#"),
-        ("Languages: C++, Python", "C++"),
-        ("Skills: Python, Go, Rust", "Go"),
-        ("Built services in Golang", "Go"),
-        ("Go developer at Acme", "Go"),
-        ("Skills: Python, Rust", "Rust"),
-        ("Stats in R, Python and SQL", "R"),
-        ("Node.js, Express, MongoDB", "Express"),
-        ("Spring Boot microservices", "Spring"),
-        ("Designed RESTful services", "REST APIs"),
-        ("Exposed a REST API", "REST APIs"),
-        ("Fine-tuned LLMs", "LLMs"),
-        ("Worked on ML pipelines", "Machine Learning"),
-        ("OpenCV-based detection", "Computer Vision"),
-        ("Deployed with Helm charts", "Helm"),
-        ("Postgres and Redis", "PostgreSQL"),
-    ])
+    @pytest.mark.parametrize(
+        "text, skill",
+        [
+            ("Senior C++ developer", "C++"),
+            ("Worked in C# and .NET", "C#"),
+            ("Languages: C++, Python", "C++"),
+            ("Skills: Python, Go, Rust", "Go"),
+            ("Built services in Golang", "Go"),
+            ("Go developer at Acme", "Go"),
+            ("Skills: Python, Rust", "Rust"),
+            ("Stats in R, Python and SQL", "R"),
+            ("Node.js, Express, MongoDB", "Express"),
+            ("Spring Boot microservices", "Spring"),
+            ("Designed RESTful services", "REST APIs"),
+            ("Exposed a REST API", "REST APIs"),
+            ("Fine-tuned LLMs", "LLMs"),
+            ("Worked on ML pipelines", "Machine Learning"),
+            ("OpenCV-based detection", "Computer Vision"),
+            ("Deployed with Helm charts", "Helm"),
+            ("Postgres and Redis", "PostgreSQL"),
+        ],
+    )
     def test_detects_skill(self, cleaner, text, skill):
         assert skill in cleaner.extract_key_skills(text)
 

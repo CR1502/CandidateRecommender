@@ -22,7 +22,10 @@ class TestEmbeddingEngine:
         self.mock_model.get_sentence_embedding_dimension.return_value = 384
         self.mock_model.to.return_value = self.mock_model
 
-        with patch('candidate_recommender.core.embeddings.SentenceTransformer', return_value=self.mock_model):
+        with patch(
+            "candidate_recommender.core.embeddings.SentenceTransformer",
+            return_value=self.mock_model,
+        ):
             self.engine = EmbeddingEngine("test-model")
 
     def test_init(self):
@@ -51,11 +54,7 @@ class TestEmbeddingEngine:
 
     def test_generate_embeddings_batch(self):
         """Test batch embedding generation."""
-        texts = [
-            "Python developer",
-            "Java engineer",
-            "Data scientist"
-        ]
+        texts = ["Python developer", "Java engineer", "Data scientist"]
 
         # Mock return value
         expected_embeddings = np.random.rand(3, 384)
@@ -119,7 +118,7 @@ class TestEmbeddingEngine:
         resumes = [
             {"text": "Python expert", "candidate_name": "John"},
             {"text": "Java developer", "candidate_name": "Jane"},
-            {"text": "ML engineer", "candidate_name": "Bob"}
+            {"text": "ML engineer", "candidate_name": "Bob"},
         ]
 
         # Mock embeddings
@@ -131,11 +130,11 @@ class TestEmbeddingEngine:
         ranked = self.engine.rank_candidates(job_description, resumes, top_k=2)
 
         assert len(ranked) == 2
-        assert all('similarity_score' in r for r in ranked)
-        assert all('percentage_score' in r for r in ranked)
-        assert all('rank' in r for r in ranked)
-        assert ranked[0]['rank'] == 1
-        assert ranked[1]['rank'] == 2
+        assert all("similarity_score" in r for r in ranked)
+        assert all("percentage_score" in r for r in ranked)
+        assert all("rank" in r for r in ranked)
+        assert ranked[0]["rank"] == 1
+        assert ranked[1]["rank"] == 2
 
     def test_rank_candidates_empty_job_description(self):
         """Test ranking with empty job description."""
@@ -164,12 +163,12 @@ class TestEmbeddingEngine:
         """Test getting model information."""
         info = self.engine.get_model_info()
 
-        assert 'model_name' in info
-        assert 'device' in info
-        assert 'max_seq_length' in info
-        assert 'embedding_dimension' in info
-        assert info['model_name'] == "test-model"
-        assert info['embedding_dimension'] == 384
+        assert "model_name" in info
+        assert "device" in info
+        assert "max_seq_length" in info
+        assert "embedding_dimension" in info
+        assert info["model_name"] == "test-model"
+        assert info["embedding_dimension"] == 384
 
 
 class TestEmbeddingEngineIntegration:
@@ -177,7 +176,7 @@ class TestEmbeddingEngineIntegration:
 
     @pytest.mark.skipif(
         True,  # Skip by default as it requires downloading models
-        reason="Requires downloading actual models"
+        reason="Requires downloading actual models",
     )
     def test_real_model_loading(self):
         """Test with actual model loading."""

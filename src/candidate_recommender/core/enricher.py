@@ -23,12 +23,14 @@ from loguru import logger
 
 try:
     import requests as _requests
+
     _HAS_REQUESTS = True
 except ImportError:
     _HAS_REQUESTS = False
 
 try:
     from bs4 import BeautifulSoup
+
     _HAS_BS4 = True
 except ImportError:
     _HAS_BS4 = False
@@ -44,16 +46,24 @@ _GITHUB_HEADERS = {
 }
 
 # Domains to skip entirely
-_SKIP_DOMAINS = frozenset({
-    "linkedin.com", "twitter.com", "x.com",
-    "facebook.com", "instagram.com", "tiktok.com",
-    "youtube.com", "medium.com",         # rate-limits / paywalls
-})
+_SKIP_DOMAINS = frozenset(
+    {
+        "linkedin.com",
+        "twitter.com",
+        "x.com",
+        "facebook.com",
+        "instagram.com",
+        "tiktok.com",
+        "youtube.com",
+        "medium.com",  # rate-limits / paywalls
+    }
+)
 
 
 # ---------------------------------------------------------------------------
 # URL helpers
 # ---------------------------------------------------------------------------
+
 
 def _hostname(url: str) -> str:
     return (urlparse(url).hostname or "").lower().rstrip(".")
@@ -85,9 +95,10 @@ def is_public_url(url: str) -> bool:
             return False
     return True
 
+
 def extract_raw_urls(text: str) -> list[str]:
     """Return all http(s) URLs found in the text, deduplicated, order preserved."""
-    pattern = r'https?://[^\s\)\]\>\"\'\,]+'
+    pattern = r"https?://[^\s\)\]\>\"\'\,]+"
     seen: set[str] = set()
     result = []
     for url in re.findall(pattern, text):
@@ -109,7 +120,7 @@ def _github_username(contact_github: str, raw_text: str) -> str | None:
     sources.extend(extract_raw_urls(raw_text))
 
     for src in sources:
-        m = re.search(r'github\.com/([A-Za-z0-9][A-Za-z0-9\-_]{0,38})', src, re.IGNORECASE)
+        m = re.search(r"github\.com/([A-Za-z0-9][A-Za-z0-9\-_]{0,38})", src, re.IGNORECASE)
         if not m:
             continue
         after = src.split("github.com/")[-1].strip("/")
@@ -123,6 +134,7 @@ def _github_username(contact_github: str, raw_text: str) -> str | None:
 # GitHub API
 # ---------------------------------------------------------------------------
 
+
 def fetch_github_info(username: str) -> str:
     """
     Fetch public GitHub profile + recent repos.
@@ -134,7 +146,8 @@ def fetch_github_info(username: str) -> str:
     try:
         pr = _requests.get(
             f"https://api.github.com/users/{username}",
-            headers=_GITHUB_HEADERS, timeout=_TIMEOUT,
+            headers=_GITHUB_HEADERS,
+            timeout=_TIMEOUT,
         )
         if pr.status_code == 404:
             return ""
@@ -145,14 +158,19 @@ def fetch_github_info(username: str) -> str:
         profile = pr.json()
 
         rr = _requests.get(
-            f"https://api.github.com/users/{username}/repos"
-            "?sort=updated&per_page=8",
-            headers=_GITHUB_HEADERS, timeout=_TIMEOUT,
+            f"https://api.github.com/users/{username}/repos?sort=updated&per_page=8",
+            headers=_GITHUB_HEADERS,
+            timeout=_TIMEOUT,
         )
         repos = rr.json() if rr.status_code == 200 and isinstance(rr.json(), list) else []
 
         lines: list[str] = [f"[GitHub: @{username}]"]
-        for field, label in [("name", "Name"), ("bio", "Bio"), ("company", "Company"), ("location", "Location")]:
+        for field, label in [
+            ("name", "Name"),
+            ("bio", "Bio"),
+            ("company", "Company"),
+            ("location", "Location"),
+        ]:
             if profile.get(field):
                 lines.append(f"{label}: {profile[field]}")
         lines.append(
@@ -199,6 +217,7 @@ def fetch_github_info(username: str) -> str:
 # Generic webpage fetch
 # ---------------------------------------------------------------------------
 
+
 def fetch_webpage_text(url: str) -> str:
     """
     Fetch a webpage and return its main body text.
@@ -213,7 +232,8 @@ def fetch_webpage_text(url: str) -> str:
             if _is_skipped_domain(_hostname(url)) or not is_public_url(url):
                 return ""
             r = _requests.get(
-                url, timeout=_TIMEOUT,
+                url,
+                timeout=_TIMEOUT,
                 headers={"User-Agent": "Mozilla/5.0 (compatible; CandidateRecommender/1.0)"},
                 allow_redirects=False,
                 stream=True,
@@ -235,7 +255,9 @@ def fetch_webpage_text(url: str) -> str:
 
         html = body.decode(r.encoding or "utf-8", errors="replace")
         soup = BeautifulSoup(html, "html.parser")
-        for tag in soup(["script", "style", "nav", "footer", "header", "aside", "noscript", "form"]):
+        for tag in soup(
+            ["script", "style", "nav", "footer", "header", "aside", "noscript", "form"]
+        ):
             tag.decompose()
 
         text = soup.get_text(separator=" ", strip=True)
@@ -254,6 +276,7 @@ def fetch_webpage_text(url: str) -> str:
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
+
 
 def enrich_candidate(raw_text: str, contact: dict) -> str:
     """

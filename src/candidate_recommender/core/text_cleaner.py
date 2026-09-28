@@ -127,9 +127,7 @@ SKILL_REGISTRY = [
 ]
 # fmt: on
 
-_COMPILED_SKILLS = [
-    (re.compile(pattern, re.IGNORECASE), name) for pattern, name in SKILL_REGISTRY
-]
+_COMPILED_SKILLS = [(re.compile(pattern, re.IGNORECASE), name) for pattern, name in SKILL_REGISTRY]
 
 
 class TextCleaner:
@@ -155,21 +153,21 @@ class TextCleaner:
 
         try:
             # Collapse whitespace
-            text = re.sub(r'\s+', ' ', text)
+            text = re.sub(r"\s+", " ", text)
 
             # Remove characters that are truly noise (control chars, zero-width etc.)
             # but keep: letters, digits, spaces, and common punctuation including
             # @, /, +, #, & which appear in skill names and contact info
-            text = re.sub(r'[^\w\s\.\,\;\:\!\?\-\(\)\@\/\+\#\&]', '', text)
+            text = re.sub(r"[^\w\s\.\,\;\:\!\?\-\(\)\@\/\+\#\&]", "", text)
 
             # Collapse repeated punctuation (e.g. "..." → ".")
-            text = re.sub(r'([.,;:!?])\1+', r'\1', text)
+            text = re.sub(r"([.,;:!?])\1+", r"\1", text)
 
             text = text.strip()
 
             if len(text) > self.max_length:
                 logger.warning(f"Text truncated from {len(text)} to {self.max_length} chars")
-                text = text[:self.max_length]
+                text = text[: self.max_length]
 
             return text
 
@@ -185,19 +183,19 @@ class TextCleaner:
         """
         # Try filename first
         if filename:
-            name = filename.rsplit('.', 1)[0]
-            name = re.sub(r'[_\-]', ' ', name)
-            name = re.sub(r'resume|cv|curriculum|vitae', '', name, flags=re.IGNORECASE)
+            name = filename.rsplit(".", 1)[0]
+            name = re.sub(r"[_\-]", " ", name)
+            name = re.sub(r"resume|cv|curriculum|vitae", "", name, flags=re.IGNORECASE)
             name = name.strip()
             if len(name) > 2:
                 return name.title()
 
         # Look in first 5 lines for a 2-4 word all-alpha sequence (likely a name)
-        for line in text.split('\n')[:5]:
+        for line in text.split("\n")[:5]:
             line = line.strip()
             words = line.split()
-            if 2 <= len(words) <= 4 and all(w.replace('-', '').isalpha() for w in words):
-                return ' '.join(words).title()
+            if 2 <= len(words) <= 4 and all(w.replace("-", "").isalpha() for w in words):
+                return " ".join(words).title()
 
         text_hash = hashlib.md5(text.encode()).hexdigest()[:8]
         return f"Candidate_{text_hash}"
@@ -304,78 +302,85 @@ class TextCleaner:
         characters like @ and / are still present.
         """
         contact: dict[str, str | None] = {
-            'email': None,
-            'phone': None,
-            'linkedin': None,
-            'github': None,
-            'location': None,
-            'website': None,
+            "email": None,
+            "phone": None,
+            "linkedin": None,
+            "github": None,
+            "location": None,
+            "website": None,
         }
 
         # Email
-        emails = re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,7}\b', text)
+        emails = re.findall(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,7}\b", text)
         if emails:
-            noise = ('noreply', 'support', 'info@', 'admin@', 'no-reply')
+            noise = ("noreply", "support", "info@", "admin@", "no-reply")
             personal = [e for e in emails if not any(n in e.lower() for n in noise)]
-            contact['email'] = personal[0] if personal else emails[0]
+            contact["email"] = personal[0] if personal else emails[0]
 
         # Phone (US + international, with optional extension)
         phone_patterns = [
-            r'(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?:\s*(?:x|ext\.?)\s*\d{1,6})?',
-            r'\+?[1-9]\d{0,2}[-.\s]\d{2,4}[-.\s]\d{4,8}',
-            r'\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b',
+            r"(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?:\s*(?:x|ext\.?)\s*\d{1,6})?",
+            r"\+?[1-9]\d{0,2}[-.\s]\d{2,4}[-.\s]\d{4,8}",
+            r"\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b",
         ]
         for pattern in phone_patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 raw = match.group(0).strip()
-                digits = re.sub(r'\D', '', raw)
+                digits = re.sub(r"\D", "", raw)
                 if 10 <= len(digits) <= 15:
-                    contact['phone'] = raw
+                    contact["phone"] = raw
                     break
 
         # LinkedIn
-        for pattern in [r'linkedin\.com/in/([A-Za-z0-9\-_]+)',
-                         r'linkedin\.com/pub/([A-Za-z0-9\-_]+)']:
+        for pattern in [
+            r"linkedin\.com/in/([A-Za-z0-9\-_]+)",
+            r"linkedin\.com/pub/([A-Za-z0-9\-_]+)",
+        ]:
             m = re.search(pattern, text, re.IGNORECASE)
             if m:
-                contact['linkedin'] = f"linkedin.com/in/{m.group(1)}"
+                contact["linkedin"] = f"linkedin.com/in/{m.group(1)}"
                 break
 
         # GitHub
-        m = re.search(r'github\.com/([A-Za-z0-9\-_]+)', text, re.IGNORECASE)
+        m = re.search(r"github\.com/([A-Za-z0-9\-_]+)", text, re.IGNORECASE)
         if m:
-            contact['github'] = f"github.com/{m.group(1)}"
+            contact["github"] = f"github.com/{m.group(1)}"
 
         # Location — try labelled indicators first, then "City, ST" pattern
-        for indicator in ['Location', 'Address', 'Based in', 'Lives in', 'Residing in']:
+        for indicator in ["Location", "Address", "Based in", "Lives in", "Residing in"]:
             m = re.search(
-                rf'{indicator}[\s:]*([A-Za-z][A-Za-z\s]+(?:,\s*[A-Za-z\s]{{2,}})?)',
-                text, re.IGNORECASE
+                rf"{indicator}[\s:]*([A-Za-z][A-Za-z\s]+(?:,\s*[A-Za-z\s]{{2,}})?)",
+                text,
+                re.IGNORECASE,
             )
             if m:
                 loc = m.group(1).strip()
-                if len(loc) > 3 and ',' in loc:
-                    contact['location'] = loc
+                if len(loc) > 3 and "," in loc:
+                    contact["location"] = loc
                     break
 
-        if not contact['location']:
+        if not contact["location"]:
             # US "City, ST" pattern
-            m = re.search(r'\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)*,\s*[A-Z]{2})\b', text)
+            m = re.search(r"\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)*,\s*[A-Z]{2})\b", text)
             if m:
-                contact['location'] = m.group(1)
+                contact["location"] = m.group(1)
 
         # Website / portfolio — match labelled URLs or bare domains
         m = re.search(
-            r'(?:website|portfolio|personal site|www)[\s:]*(?:https?://)?([A-Za-z0-9\-]+\.[A-Za-z]{2,}(?:/[^\s]*)?)',
-            text, re.IGNORECASE
+            r"(?:website|portfolio|personal site|www)[\s:]*(?:https?://)?([A-Za-z0-9\-]+\.[A-Za-z]{2,}(?:/[^\s]*)?)",
+            text,
+            re.IGNORECASE,
         )
         if m:
-            contact['website'] = m.group(1)
+            contact["website"] = m.group(1)
         else:
             # Bare https:// URL that isn't LinkedIn/GitHub
-            m = re.search(r'https?://(?!(?:www\.)?(linkedin|github))([A-Za-z0-9\-.]+\.[A-Za-z]{2,}(?:/[^\s]*)?)', text)
+            m = re.search(
+                r"https?://(?!(?:www\.)?(linkedin|github))([A-Za-z0-9\-.]+\.[A-Za-z]{2,}(?:/[^\s]*)?)",
+                text,
+            )
             if m:
-                contact['website'] = m.group(0)
+                contact["website"] = m.group(0)
 
         return contact
