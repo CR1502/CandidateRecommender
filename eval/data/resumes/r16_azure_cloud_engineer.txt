@@ -1,0 +1,14 @@
+Nadia Petrova
+nadia.petrova@example.com | Charlotte, NC
+
+Cloud engineer, 4 years of experience.
+
+Cloud Engineer — FinServe Group                                   2022 – Present
+- Azure infrastructure with Terraform and Bicep; AKS clusters for internal apps
+- Azure DevOps pipelines for 25 teams; migrated them to GitHub Actions
+- Monitoring with Azure Monitor and Grafana
+
+Junior DevOps Engineer — Brightpath                                2021 – 2022
+- Docker and Jenkins pipelines; Linux administration
+
+Skills: Azure, Terraform, Kubernetes, Docker, GitHub Actions, CI/CD, Linux, Bash, PowerShell, Grafana

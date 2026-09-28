@@ -1,0 +1,21 @@
+Kenji Watanabe
+kenji.watanabe@example.com | San Francisco, CA | github.com/kwatanabe
+
+Machine learning engineer with 5 years of experience shipping NLP systems.
+
+EXPERIENCE
+Senior ML Engineer — Helpwise AI                                  2022 – Present
+- Fine-tuned Llama and Mistral models with LoRA for ticket summarization; +18% agent CSAT
+- Built a RAG pipeline (sentence-transformers embeddings, pgvector) for support answer suggestions
+- Training and evaluation pipelines in PyTorch and HuggingFace Transformers
+- Deployed models with Docker and Kubernetes; tracked experiments in MLflow
+
+ML Engineer — Lexico                                              2020 – 2022
+- Text classification and NER models (BERT) for legal documents
+- Built the offline evaluation harness and labeling workflows
+
+PUBLICATIONS
+- "Efficient Domain Adaptation for Support Ticket Classification", EMNLP Industry Track 2023
+
+SKILLS
+Python, PyTorch, HuggingFace, Transformers, LLMs, NLP, RAG, MLflow, Docker, Kubernetes, AWS, SQL

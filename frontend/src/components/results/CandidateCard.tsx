@@ -132,7 +132,7 @@ export function CandidateCard({ candidate: c }: Props) {
                 >
                   <Canvas camera={{ position: [0, 0, 3.8], fov: 45 }}>
                     <RadarChart3D
-                      semantic={c.similarity_score}
+                      semantic={c.semantic_score}
                       skillCoverage={c.skill_coverage_score}
                       experience={c.experience_score}
                       color={c.category_color}

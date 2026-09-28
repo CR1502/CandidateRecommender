@@ -1,0 +1,16 @@
+Arjun Mehta
+arjun.mehta@example.com | Chicago, IL | github.com/arjunmehta
+
+Data engineer with 6 years of experience building large-scale batch and streaming pipelines.
+
+Senior Data Engineer — Shelfsight (retail analytics)              2021 – Present
+- Spark (PySpark) batch jobs processing 3B events/day on Databricks
+- Streaming ingestion with Kafka and Spark Structured Streaming
+- Orchestration with Airflow; data models in Snowflake with dbt and data tests
+- Cut warehouse cost 35% with clustering and incremental models
+
+Data Engineer — Ridepool                                          2019 – 2021
+- Python ETL and SQL pipelines; migrated cron jobs to Airflow
+- BigQuery data warehouse design
+
+Skills: Python, SQL, Spark, PySpark, Kafka, Airflow, Snowflake, dbt, BigQuery, Databricks, AWS, Docker

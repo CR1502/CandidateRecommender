@@ -1,0 +1,16 @@
+Site Reliability Engineer
+
+Our platform team keeps a multi-region SaaS product running for millions of users. We're hiring an SRE to strengthen reliability and automation.
+
+Responsibilities
+- Operate and scale Kubernetes clusters on AWS
+- Manage infrastructure as code with Terraform
+- Build and maintain CI/CD pipelines (GitHub Actions, Helm)
+- Improve monitoring and alerting with Prometheus and Grafana; lead incident response and postmortems
+- Automate operational work with Python or Bash
+
+Requirements
+- 4+ years in SRE, DevOps, or infrastructure engineering
+- Strong Linux fundamentals and networking knowledge
+- Production Kubernetes, Terraform, and AWS experience
+- Experience with observability tooling and on-call operations

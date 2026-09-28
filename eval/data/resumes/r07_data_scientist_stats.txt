@@ -1,0 +1,15 @@
+Sofia Lindqvist
+sofia.lindqvist@example.com | New York, NY
+
+Data scientist with a statistics background; 4 years in experimentation and forecasting.
+
+Data Scientist — Cartwheel (e-commerce)                           2022 – Present
+- Designed and analyzed A/B tests for checkout and pricing; built the experimentation guidelines
+- Demand forecasting models with scikit-learn and gradient boosting
+- Dashboards and analyses in Python (pandas) and R
+
+Analyst — Metro Research Group                                    2021 – 2022
+- Survey analysis and regression modeling in R and SQL
+
+Skills: Python, R, pandas, NumPy, scikit-learn, SQL, statistics, experimentation, Tableau
+Education: M.A. Statistics, Columbia University

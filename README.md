@@ -36,11 +36,11 @@ Job description ────────┘                                     
 
 | Component | Weight | What it measures |
 |---|---|---|
-| Semantic similarity | 60% | Cosine similarity of [`BAAI/bge-small-en-v1.5`](https://huggingface.co/BAAI/bge-small-en-v1.5) embeddings (the job description gets the BGE query prefix) |
-| Skill coverage | 30% | Fraction of the job's skills found in the resume, from a curated skill registry |
-| Experience | 10% | Stated years of experience vs. the job's requirement (ranges like "3–5 years" use the minimum) |
+| Semantic similarity | 60% | Cosine similarity of [`BAAI/bge-small-en-v1.5`](https://huggingface.co/BAAI/bge-small-en-v1.5) embeddings, rescaled from the model's working range (0.45–0.85) onto 0–1. Resumes are split into overlapping 250-word chunks so the whole resume is read, not just the first ~512 tokens |
+| Skill coverage | 30% | Weighted share of the job's skills the resume demonstrates. Nice-to-have skills count half; skills that appear only in a skills list (never in the work history) earn half credit |
+| Experience | 10% | Years of experience (stated, or computed from employment date ranges) vs. the job's requirement, scaled by relevance so that years in an unrelated field don't add points |
 
-Duplicate resumes (identical text) are removed before ranking. Candidates are then placed in tiers:
+If a job lists no recognisable skills or states no years of experience, that component is dropped and the remaining weights renormalised, rather than scored as a "neutral" 0.5. Duplicate resumes (identical text) are removed before ranking. Candidates are then placed in tiers:
 
 | Tier | Composite score |
 |---|---|
@@ -49,6 +49,8 @@ Duplicate resumes (identical text) are removed before ranking. Candidates are th
 | ✅ Good Candidate | 50–70% |
 | 👍 Okay Candidate | 25–50% |
 | ❌ Not Recommended | < 25% |
+
+These choices were measured against a labelled evaluation set. See [eval/README.md](eval/README.md) for the results, including the models and rerankers that were tried and not adopted.
 
 **Fit summaries** come from a local Ollama model (default `llama3.2`) when it's running, and otherwise from a deterministic template built from the extracted signals.
 
@@ -98,6 +100,9 @@ All settings are environment variables (or a `.env` file; copy [`.env.example`](
 | `OLLAMA_MODEL` | `llama3.2` | Model used for summaries and LLM skill extraction |
 | `OLLAMA_TIMEOUT` | `60` | Seconds per Ollama request |
 | `SCORING_WEIGHTS` | `{"semantic": 0.6, "skill_coverage": 0.3, "experience": 0.1}` | JSON; must sum to 1.0 |
+| `SEMANTIC_FLOOR` / `SEMANTIC_CEILING` | `0.45` / `0.85` | Cosine range rescaled onto 0–1; re-tune with `eval/` if you change models |
+| `CHUNK_WORDS` | `250` | Resume chunk size for embedding (`0` disables chunking) |
+| `CHUNK_AGGREGATION` | `max_mean` | How chunk scores combine: `max`, `mean`, or `max_mean` |
 | `MAX_FILE_SIZE_MB` | `10` | Per-file upload limit |
 | `MAX_FILES_PER_UPLOAD` | `20` | Files per ranking request |
 | `TOP_CANDIDATES_COUNT` | `10` | Default number of results |
@@ -116,13 +121,15 @@ CandidateRecommender/
 │   │   ├── schemas/           # Pydantic response models
 │   │   └── services/          # pipeline.py — orchestrates the ranking flow
 │   └── core/                  # ML and text processing
-│       ├── embeddings.py      # Embeddings, composite scoring, ranking
+│       ├── embeddings.py      # Embeddings, chunking, composite scoring, ranking
+│       ├── experience.py      # Years of experience from employment dates
 │       ├── text_cleaner.py    # Cleaning, skill registry, contact extraction
 │       ├── file_processor.py  # PDF / DOCX / TXT extraction
 │       ├── summarizer.py      # Ollama + template fit summaries
 │       └── enricher.py        # GitHub + portfolio enrichment (SSRF-guarded)
 ├── frontend/                  # React + Vite + TypeScript UI
 ├── tests/                     # pytest suite
+├── eval/                      # Labelled ranking dataset + run_eval.py
 ├── data/                      # Sample resume generator
 ├── pyproject.toml / uv.lock   # Python dependencies (uv)
 ├── Dockerfile                 # Builds frontend, then Python runtime
@@ -134,6 +141,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the API contract and data flow.
 ## Development
 
 ```bash
+uv run python eval/run_eval.py   # ranking quality on the labelled eval set
 uv run pytest -q          # tests
 uv run ruff check         # lint
 uv run ruff format        # format
@@ -141,12 +149,11 @@ cd frontend && npm run lint && npm run build
 uv run pre-commit install # optional: lint + format on every commit
 ```
 
-CI (GitHub Actions) runs backend lint and tests, frontend lint and build, and a Docker image build on every push and pull request.
+CI (GitHub Actions) runs backend lint and tests, frontend lint and build, the ranking evaluation (failing if mean NDCG@5 drops below 0.93), and a Docker image build on every push and pull request.
 
 ## Limitations
 
 - **English, text-based resumes only.** Scanned PDFs have no extractable text (no OCR yet).
-- **The embedding model reads roughly the first 512 tokens** (about one page) of each resume.
 - **Skill scoring uses a curated registry**, so skills outside it don't affect the score. With Ollama running, the displayed matching skills also include LLM-extracted ones.
 - **Enrichment makes outbound requests.** It fetches public GitHub profiles and portfolio pages linked in resumes. Only public addresses are allowed (private, loopback, and cloud-metadata IPs are blocked), and LinkedIn and other social sites are skipped.
 - **Screening support, not a decision-maker.** Scores and summaries are aids for a human reviewer; automated hiring decisions carry legal and fairness obligations in many jurisdictions.

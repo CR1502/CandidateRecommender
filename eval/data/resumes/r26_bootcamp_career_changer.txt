@@ -1,0 +1,13 @@
+Tyler Morgan
+tyler.morgan@example.com | Raleigh, NC | github.com/tylermorgan
+
+Former marketing coordinator, now a junior frontend developer after completing a 16-week web development bootcamp.
+
+Web Development Bootcamp — CodeForward                            2025
+- Built three team projects in React and JavaScript, including a recipe-sharing app with a Node.js backend
+
+Marketing Coordinator — Blue Ridge Realty                         2021 – 2025
+- Managed social media and email newsletters; built landing pages in WordPress
+- Ran small Google Ads and Facebook campaigns
+
+Skills: JavaScript, React, HTML, CSS, Node.js, Git, WordPress, social media, email marketing

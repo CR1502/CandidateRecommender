@@ -1,0 +1,26 @@
+Priya Raman
+priya.raman@example.com | (555) 201-3344 | github.com/priyaraman | Seattle, WA
+
+SUMMARY
+Backend engineer with 8 years of experience building payment and billing APIs in Python. I care about reliable systems, clean API design, and helping teammates grow.
+
+EXPERIENCE
+Staff Backend Engineer — Ledgerly (payments platform)            Mar 2021 – Present
+- Lead engineer for the merchant payouts API (FastAPI, PostgreSQL), handling 40M requests/day
+- Migrated services from EC2 to Kubernetes (EKS) with Helm; cut deploy time from 40 to 6 minutes
+- Introduced contract testing and OpenTelemetry tracing across 12 services
+- Mentor four engineers; run the backend design review
+
+Senior Software Engineer — ShopStack                              Jun 2017 – Feb 2021
+- Built the order and invoicing services in Django and Django REST Framework
+- Designed PostgreSQL schemas and partitioning for 2B-row tables; moved hot reads to Redis
+- Background jobs with Celery; event publishing with Kafka
+
+Software Engineer — Brightline Analytics                          Jul 2016 – May 2017
+- Python services for report generation on AWS (Lambda, S3, RDS)
+
+SKILLS
+Python, FastAPI, Django, PostgreSQL, Redis, Celery, Kafka, Docker, Kubernetes, Helm, AWS, Terraform, REST APIs, OpenTelemetry
+
+EDUCATION
+B.S. Computer Science, University of Washington

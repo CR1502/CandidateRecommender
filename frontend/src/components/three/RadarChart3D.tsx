@@ -3,9 +3,9 @@ import { Html, Line } from '@react-three/drei'
 import * as THREE from 'three'
 
 interface Props {
-  semantic: number      // 0–1
-  skillCoverage: number // 0–1
-  experience: number    // 0–1
+  semantic: number             // 0–1
+  skillCoverage: number | null // 0–1, null when not applicable to the job
+  experience: number | null    // 0–1, null when not applicable to the job
   color: string
 }
 
@@ -25,10 +25,11 @@ function toTuple(angle: number, r: number): [number, number, number] {
 
 export function RadarChart3D({ semantic, skillCoverage, experience, color }: Props) {
   const maxR = 1.15
-  const values = [semantic, skillCoverage, experience]
+  const raw = [semantic, skillCoverage, experience]
+  const values = raw.map(v => v ?? 0)
 
   const filledGeo = useMemo(() => {
-    const vals = [semantic, skillCoverage, experience]
+    const vals = [semantic, skillCoverage ?? 0, experience ?? 0]
     const pts = AXES.map((ax, i) => toVec(ax.angle, vals[i] * maxR))
     const verts: number[] = []
     for (let i = 0; i < 3; i++) {
@@ -42,7 +43,7 @@ export function RadarChart3D({ semantic, skillCoverage, experience, color }: Pro
 
   // Points for Drei <Line> — outline closes back to first point
   const outlinePoints = useMemo<[number, number, number][]>(() => {
-    const vals = [semantic, skillCoverage, experience]
+    const vals = [semantic, skillCoverage ?? 0, experience ?? 0]
     const pts = AXES.map((ax, i) => toTuple(ax.angle, vals[i] * maxR))
     return [...pts, pts[0]] as [number, number, number][]
   }, [semantic, skillCoverage, experience])
@@ -76,7 +77,7 @@ export function RadarChart3D({ semantic, skillCoverage, experience, color }: Pro
                 {ax.label}
               </div>
               <div style={{ color, fontWeight: 700, fontSize: '0.68rem' }}>
-                {(values[i] * 100).toFixed(0)}%
+                {raw[i] === null ? 'n/a' : `${(values[i] * 100).toFixed(0)}%`}
               </div>
             </div>
           </Html>

@@ -1,0 +1,19 @@
+Frontend Engineer (React / TypeScript)
+
+We build a collaborative design-review tool. You'll own large parts of our web app, which is used daily by product teams.
+
+What you'll do
+- Build fast, accessible UI in React and TypeScript with Next.js
+- Own our component library and design system (Tailwind CSS)
+- Work closely with designers to ship polished interactions
+- Improve performance, test coverage, and developer experience on the frontend
+
+Requirements
+- 3+ years building production web applications with React
+- Strong TypeScript, HTML, and CSS fundamentals
+- Experience with Next.js or similar SSR frameworks
+- Care for accessibility and UI detail
+
+Nice to have
+- GraphQL experience
+- Experience maintaining a design system

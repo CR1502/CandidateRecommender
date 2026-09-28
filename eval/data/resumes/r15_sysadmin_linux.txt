@@ -1,0 +1,12 @@
+Robert Hughes
+robert.hughes@example.com | Columbus, OH
+
+IT Systems Administrator — Midwest Manufacturing Co.              2015 – Present
+- Administer 200 Linux and Windows servers, VMware vSphere, and Active Directory
+- Shell scripting for backups and patching; started using Ansible for configuration
+- Manage firewalls, VPN, and on-site networking
+
+Help Desk Technician — Columbus Public Schools                    2012 – 2015
+
+Skills: Linux, Windows Server, VMware, Active Directory, Bash, Ansible, networking, backups
+Certifications: RHCSA, CompTIA Network+

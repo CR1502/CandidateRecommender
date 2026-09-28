@@ -1,0 +1,11 @@
+Samuel Greene
+samuel.greene@example.com | Phoenix, AZ
+
+Business Intelligence Analyst — DesertLine Logistics              2020 – Present
+- Build Tableau dashboards for operations leadership
+- Write SQL queries against the Redshift warehouse; maintain Excel models for forecasting
+- Present weekly performance reviews to regional managers
+
+Operations Analyst — DesertLine Logistics                         2018 – 2020
+
+Skills: SQL, Tableau, Excel, Redshift, PowerPoint, reporting

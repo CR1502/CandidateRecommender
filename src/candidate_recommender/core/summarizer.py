@@ -19,6 +19,7 @@ from typing import Any
 
 from loguru import logger
 
+from .experience import candidate_years
 from .text_cleaner import TextCleaner
 
 _text_cleaner = TextCleaner()
@@ -103,8 +104,8 @@ class CandidateSummarizer:
         resume_text: str,
         composite_score: float,
         matching_skills: list[str] | None = None,
-        skill_coverage: float = 0.0,
-        experience_score: float = 0.0,
+        skill_coverage: float | None = 0.0,
+        experience_score: float | None = 0.0,
         enriched_context: str = "",
     ) -> str:
         """
@@ -115,8 +116,10 @@ class CandidateSummarizer:
             resume_text:       Full resume text.
             composite_score:   0–1 composite match score.
             matching_skills:   Skills found in both JD and resume.
-            skill_coverage:    Fraction of required skills matched (0–1).
-            experience_score:  Experience heuristic score (0–1).
+            skill_coverage:    Fraction of required skills matched (0–1), or None
+                               when the job lists no recognisable skills.
+            experience_score:  Experience heuristic score (0–1), or None when
+                               the job states no experience requirement.
             enriched_context:  Extra context from GitHub / portfolio URLs.
 
         Returns:
@@ -172,11 +175,12 @@ class CandidateSummarizer:
             try:
                 candidate["fit_summary"] = self.generate_fit_summary(
                     job_description=job_description,
-                    resume_text=candidate["text"],
+                    # Raw text: keeps line breaks for date parsing, and "%"
+                    resume_text=candidate.get("raw_text") or candidate["text"],
                     composite_score=candidate.get("composite_score", 0.0),
                     matching_skills=candidate.get("matching_skills"),
-                    skill_coverage=candidate.get("skill_coverage_score", 0.0),
-                    experience_score=candidate.get("experience_score", 0.0),
+                    skill_coverage=candidate.get("skill_coverage_score"),
+                    experience_score=candidate.get("experience_score"),
                     enriched_context=enriched,
                 )
             except Exception as e:
@@ -198,13 +202,23 @@ class CandidateSummarizer:
         resume_text: str,
         composite_score: float,
         matching_skills: list[str] | None,
-        skill_coverage: float,
-        experience_score: float,
+        skill_coverage: float | None,
+        experience_score: float | None,
         enriched_context: str = "",
     ) -> str:
         jd_snippet = job_description[:550]
         cv_snippet = resume_text[:1000]
         pct = composite_score * 100
+        coverage_line = (
+            f"{skill_coverage * 100:.0f}% of required skills found"
+            if skill_coverage is not None
+            else "not applicable (no recognised skills in the job description)"
+        )
+        experience_line = (
+            f"{experience_score * 100:.0f}%"
+            if experience_score is not None
+            else "not applicable (the job states no years of experience)"
+        )
 
         skills_line = (
             f"\nVerified matching skills: {', '.join(matching_skills[:12])}."
@@ -227,8 +241,8 @@ CANDIDATE RESUME:
 
 MATCH DATA:
 - Overall score: {pct:.1f}%
-- Skill coverage: {skill_coverage * 100:.0f}% of required skills found
-- Experience alignment: {experience_score * 100:.0f}%{skills_line}
+- Skill coverage: {coverage_line}
+- Experience alignment: {experience_line}{skills_line}
 
 Write a 4–5 sentence assessment. Requirements:
 1. Name specific technologies, companies, projects, or achievements from the candidate's background — do not speak in generalities
@@ -251,8 +265,8 @@ Do not use filler phrases like "strong candidate" or "great fit" unless you back
         resume_text: str,
         composite_score: float,
         matching_skills: list[str] | None,
-        skill_coverage: float,
-        experience_score: float,
+        skill_coverage: float | None,
+        experience_score: float | None,
         enriched_context: str = "",
     ) -> str:
         """
@@ -267,8 +281,7 @@ Do not use filler phrases like "strong candidate" or "great fit" unless you back
             matching_skills = sorted(job_skills & resume_skills)
 
         # Extract years of experience from resume
-        years_matches = re.findall(r"(\d+)\+?\s*years?", resume_text, re.IGNORECASE)
-        max_years = max((int(y) for y in years_matches), default=0)
+        max_years = int(candidate_years(resume_text))
 
         # Seniority signals
         seniority_words = [
@@ -329,7 +342,7 @@ Do not use filler phrases like "strong candidate" or "great fit" unless you back
         if pct >= 70:
             s3 = "Recommend for interview."
         elif pct >= 50:
-            skill_gap = round((1.0 - skill_coverage) * 100)
+            skill_gap = 0 if skill_coverage is None else round((1.0 - skill_coverage) * 100)
             if skill_gap > 30:
                 s3 = f"Around {skill_gap}% of required skills were not found — worth discussing in a screen."
             else:

@@ -39,12 +39,7 @@ logger.add(sys.stderr, level=settings.log_level.upper())
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Load the models once at startup so no request pays the cold-start cost."""
     logger.info("Loading models…")
-    app.state.embedding_engine = await asyncio.to_thread(
-        EmbeddingEngine,
-        model_name=settings.embedding_model,
-        query_prefix=settings.bge_query_prefix,
-        scoring_weights=settings.scoring_weights.model_dump(),
-    )
+    app.state.embedding_engine = await asyncio.to_thread(EmbeddingEngine.from_settings, settings)
     app.state.summarizer = await asyncio.to_thread(
         CandidateSummarizer,
         base_url=settings.ollama_base_url,

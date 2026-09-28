@@ -1,0 +1,16 @@
+Marcus Bell
+marcus.bell@example.com | Austin, TX
+
+Software Engineer — Tallypoint                                    2022 – Present
+- Develop features for a Django web application serving small-business accounting customers
+- Write REST endpoints with Django REST Framework and maintain PostgreSQL migrations
+- Containerized the app with Docker and set up GitHub Actions CI
+- On-call for the billing service
+
+Junior Developer — Webcraft Agency                                2021 – 2022
+- Built client websites and internal tools in Python (Flask) and JavaScript
+- Wrote SQL reports for clients
+
+Technical skills: Python, Django, Flask, PostgreSQL, Docker, Git, JavaScript, SQL
+
+Education: B.S. Information Systems, Texas State University, 2021

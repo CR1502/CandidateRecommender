@@ -1,0 +1,15 @@
+Grace Adeyemi
+grace.adeyemi@example.com | Toronto, ON
+
+MLOps engineer — I build the platforms that data scientists ship models on. 5 years of experience.
+
+ML Platform Engineer — Northstar Health                           2021 – Present
+- Built the model training and serving platform on Kubernetes with Kubeflow and KServe
+- Infrastructure as code with Terraform on AWS; GitHub Actions for CI/CD
+- Model registry and experiment tracking with MLflow; feature store with Feast
+- Monitoring for model drift with Prometheus and Grafana
+
+DevOps Engineer — Cloudpeak                                       2019 – 2021
+- Kubernetes, Helm, Terraform, and Jenkins for a SaaS product
+
+Skills: Python, Kubernetes, Kubeflow, MLflow, Terraform, AWS, Docker, Helm, Prometheus, Grafana, CI/CD, Linux

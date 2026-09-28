@@ -1,0 +1,12 @@
+Mateo Rossi
+mateo.rossi@example.com | Denver, CO
+
+Frontend Developer — Travelnest                                   2022 – Present
+- Build booking flows in Angular and TypeScript; migrated legacy AngularJS modules
+- Shared component library with SCSS and Storybook
+
+Frontend Developer — Pixel & Co. (agency)                          2020 – 2022
+- Vue.js and Nuxt sites for retail and hospitality clients
+- Responsive HTML/CSS, animations, and performance tuning
+
+Skills: TypeScript, JavaScript, Angular, Vue, Nuxt, HTML, CSS, SCSS, RxJS, Git

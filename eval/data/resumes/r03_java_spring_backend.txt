@@ -1,0 +1,20 @@
+Elena Sokolova
+elena.sokolova@example.com | Chicago, IL | linkedin.com/in/elenasokolova
+
+Senior Java Engineer with 7 years building backend services for insurance and banking.
+
+EXPERIENCE
+Senior Software Engineer — Northwind Insurance                    2019 – Present
+- Build claims-processing microservices in Java 17 with Spring Boot
+- Deploy to Kubernetes on AWS; maintain Jenkins and ArgoCD pipelines
+- Designed an event-driven architecture on Kafka for claim status updates
+- Oracle and PostgreSQL data modeling
+
+Software Engineer — Meridian Bank                                 2017 – 2019
+- Core banking integrations in Java and Spring; SOAP and REST APIs
+
+SKILLS
+Java, Spring Boot, Kotlin, Kafka, PostgreSQL, Oracle, Docker, Kubernetes, AWS, Jenkins, Microservices
+
+EDUCATION
+M.S. Software Engineering, DePaul University

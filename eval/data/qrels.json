@@ -1,0 +1,51 @@
+{
+  "_scale": "3 = would interview, 2 = plausible with gaps, 1 = related but weak, 0 = not relevant (default for unlisted resumes)",
+  "backend_python": {
+    "r01_senior_python_backend": 3,
+    "r25_long_manager_skills_at_end": 3,
+    "r02_mid_django_dates_only": 2,
+    "r04_go_backend_some_python": 2,
+    "r03_java_spring_backend": 1,
+    "r12_fullstack_node_react": 1,
+    "r05_junior_python_grad": 1,
+    "r14_sre_kubernetes": 1,
+    "r17_data_engineer_spark": 1,
+    "r09_mlops_platform": 1,
+    "r06_ml_nlp_engineer": 1
+  },
+  "ml_engineer": {
+    "r06_ml_nlp_engineer": 3,
+    "r08_cv_research_phd": 2,
+    "r09_mlops_platform": 1,
+    "r07_data_scientist_stats": 1,
+    "r29_long_data_scientist_nlp_late": 2
+  },
+  "frontend_react": {
+    "r10_senior_react_ts": 3,
+    "r12_fullstack_node_react": 2,
+    "r11_angular_vue_frontend": 2,
+    "r26_bootcamp_career_changer": 1,
+    "r13_ux_designer": 1,
+    "r27_long_frontend_lead": 3
+  },
+  "devops_sre": {
+    "r14_sre_kubernetes": 3,
+    "r09_mlops_platform": 2,
+    "r16_azure_cloud_engineer": 2,
+    "r15_sysadmin_linux": 1,
+    "r04_go_backend_some_python": 1,
+    "r01_senior_python_backend": 1
+  },
+  "data_engineer": {
+    "r17_data_engineer_spark": 3,
+    "r18_analytics_engineer_dbt": 2,
+    "r07_data_scientist_stats": 1,
+    "r19_bi_analyst": 1,
+    "r29_long_data_scientist_nlp_late": 1
+  },
+  "marketing_manager": {
+    "r20_digital_marketing_manager": 3,
+    "r21_content_social_marketer": 1,
+    "r26_bootcamp_career_changer": 1
+  }
+}
