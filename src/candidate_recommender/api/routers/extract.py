@@ -3,12 +3,11 @@ from __future__ import annotations
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
 from loguru import logger
 
-from backend.schemas.responses import ExtractResponse
-from backend.services.pipeline import run_extract_pipeline
+from candidate_recommender.api.schemas.responses import ExtractResponse
+from candidate_recommender.api.services.pipeline import run_extract_pipeline
+from candidate_recommender.config import ALLOWED_EXTENSIONS
 
 router = APIRouter(tags=["extract"])
-
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt"}
 
 
 @router.post("/extract", response_model=ExtractResponse)
@@ -19,7 +18,7 @@ async def extract_resume(
     Extract contact information and skills from a single resume without ranking.
     Useful for quick candidate scans or pre-processing.
     """
-    suffix = "." + (file.filename or "").rsplit(".", 1)[-1].lower()
+    suffix = (file.filename or "").rsplit(".", 1)[-1].lower()
     if suffix not in ALLOWED_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
@@ -29,10 +28,10 @@ async def extract_resume(
     try:
         return await run_extract_pipeline(file)
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(status_code=422, detail=str(e)) from e
     except Exception as e:
-        logger.error(f"Extract pipeline error: {e}")
+        logger.exception(f"Extract pipeline error: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Extraction failed: {e}",
-        )
+            detail="Extraction failed due to an internal error.",
+        ) from e

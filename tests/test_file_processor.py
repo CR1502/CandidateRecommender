@@ -2,15 +2,11 @@
 Unit tests for file processor module.
 """
 
-import pytest
 import io
-from pathlib import Path
-import sys
 
-# Add src to path
-sys.path.append(str(Path(__file__).parent.parent / "src"))
+import pytest
 
-from core.file_processor import FileProcessor
+from candidate_recommender.core.file_processor import FileProcessor
 
 
 class TestFileProcessor:
@@ -23,9 +19,9 @@ class TestFileProcessor:
     def test_init(self):
         """Test FileProcessor initialization."""
         assert self.processor.max_file_size_bytes == 10 * 1024 * 1024
-        assert 'pdf' in self.processor.supported_formats
-        assert 'docx' in self.processor.supported_formats
-        assert 'txt' in self.processor.supported_formats
+        assert "pdf" in self.processor.supported_formats
+        assert "docx" in self.processor.supported_formats
+        assert "txt" in self.processor.supported_formats
 
     def test_validate_file_valid(self):
         """Test file validation with valid file."""
@@ -66,7 +62,7 @@ class TestFileProcessor:
     def test_extract_from_txt(self):
         """Test text extraction from TXT file."""
         content = "This is a test resume.\nWith multiple lines."
-        file_obj = io.BytesIO(content.encode('utf-8'))
+        file_obj = io.BytesIO(content.encode("utf-8"))
 
         extracted_text = self.processor._extract_from_txt(file_obj)
         assert extracted_text == content
@@ -74,7 +70,7 @@ class TestFileProcessor:
     def test_extract_from_txt_with_encoding(self):
         """Test text extraction with different encoding."""
         content = "Resume with special characters: café, résumé"
-        file_obj = io.BytesIO(content.encode('latin-1'))
+        file_obj = io.BytesIO(content.encode("latin-1"))
 
         extracted_text = self.processor._extract_from_txt(file_obj)
         assert "special characters" in extracted_text
@@ -82,7 +78,7 @@ class TestFileProcessor:
     def test_process_file_txt(self):
         """Test complete file processing for TXT."""
         content = "John Doe\nSoftware Engineer\nPython, Java, SQL"
-        file_obj = io.BytesIO(content.encode('utf-8'))
+        file_obj = io.BytesIO(content.encode("utf-8"))
 
         text, candidate_name = self.processor.process_file(file_obj, "john_doe_resume.txt")
 
@@ -95,7 +91,7 @@ class TestFileProcessor:
         files = []
         for i in range(3):
             content = f"Resume {i}\nCandidate {i}"
-            file_obj = io.BytesIO(content.encode('utf-8'))
+            file_obj = io.BytesIO(content.encode("utf-8"))
             file_obj.name = f"resume_{i}.txt"
             files.append(file_obj)
 
@@ -103,9 +99,9 @@ class TestFileProcessor:
 
         assert len(results) == 3
         for i, result in enumerate(results):
-            assert result['filename'] == f"resume_{i}.txt"
-            assert result['text'] is not None
-            assert result['error'] is None
+            assert result["filename"] == f"resume_{i}.txt"
+            assert result["text"] is not None
+            assert result["error"] is None
 
     def test_process_multiple_files_with_errors(self):
         """Test processing multiple files with some errors."""
@@ -113,7 +109,7 @@ class TestFileProcessor:
 
         # Valid file
         valid_content = "Valid resume"
-        valid_file = io.BytesIO(valid_content.encode('utf-8'))
+        valid_file = io.BytesIO(valid_content.encode("utf-8"))
         valid_file.name = "valid.txt"
         files.append(valid_file)
 
@@ -125,8 +121,8 @@ class TestFileProcessor:
         results = self.processor.process_multiple_files(files)
 
         assert len(results) == 2
-        assert results[0]['error'] is None
-        assert results[1]['error'] is not None
+        assert results[0]["error"] is None
+        assert results[1]["error"] is not None
 
 
 class TestFileProcessorIntegration:

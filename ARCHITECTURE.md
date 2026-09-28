@@ -6,9 +6,9 @@
 |-------|-----------|-----|
 | Backend API | FastAPI | Async, typed, auto-generates OpenAPI docs |
 | ML Core | sentence-transformers + Ollama | Already working, just needs HTTP wrappers |
-| Frontend | React 18 + Vite | Fast dev loop, good ecosystem |
+| Frontend | React 19 + Vite | Fast dev loop, good ecosystem |
 | 3D | React Three Fiber (R3F) + Drei | Declarative Three.js in React, minimal boilerplate |
-| Styling | Tailwind CSS + shadcn/ui | Utility-first, consistent components |
+| Styling | Tailwind CSS | Utility-first styling |
 | State | Zustand | Lightweight, no boilerplate vs Redux |
 | HTTP client | TanStack Query + axios | Caching, loading states, error boundaries built in |
 
@@ -18,55 +18,47 @@
 
 ```
 CandidateRecommender/
-├── backend/                        ← FastAPI app
-│   ├── main.py                     ← App entry point, CORS, router registration
-│   ├── routers/
-│   │   ├── rank.py                 ← POST /api/rank
-│   │   ├── extract.py              ← POST /api/extract
-│   │   └── health.py               ← GET  /api/health
-│   ├── schemas/
-│   │   ├── requests.py             ← Pydantic input models
-│   │   └── responses.py            ← Pydantic output models
-│   ├── services/
-│   │   └── pipeline.py             ← Orchestrates file → embed → rank → summarise
-│   └── dependencies.py             ← Model singleton injection (loaded once at startup)
-│
-├── src/                            ← Existing ML core (unchanged)
-│   ├── config.py
-│   └── core/
+├── src/candidate_recommender/      ← single Python package (installed by uv)
+│   ├── config.py                   ← pydantic-settings Settings + score tiers
+│   ├── api/                        ← FastAPI app
+│   │   ├── main.py                 ← App, lifespan model loading, CORS, SPA static serving
+│   │   ├── dependencies.py         ← Hands the models on app.state to routes
+│   │   ├── routers/
+│   │   │   ├── rank.py             ← POST /api/rank
+│   │   │   ├── extract.py          ← POST /api/extract
+│   │   │   └── health.py           ← GET  /api/health
+│   │   ├── schemas/
+│   │   │   └── responses.py        ← Pydantic output models
+│   │   └── services/
+│   │       └── pipeline.py         ← Orchestrates file → embed → rank → enrich → summarise
+│   └── core/                       ← ML + text processing
 │       ├── embeddings.py
+│       ├── enricher.py
 │       ├── summarizer.py
 │       ├── text_cleaner.py
 │       └── file_processor.py
+│
+├── tests/                          ← pytest suite (models mocked)
 │
 └── frontend/                       ← React + Vite app
     ├── src/
     │   ├── main.tsx
     │   ├── App.tsx
+    │   ├── types.ts                ← Mirrors the API response models
     │   ├── api/
     │   │   └── client.ts           ← axios instance + typed API calls
     │   ├── store/
     │   │   └── useAppStore.ts      ← Zustand store
     │   ├── components/
-    │   │   ├── three/              ← All 3D components
-    │   │   │   ├── Scene.tsx       ← R3F Canvas wrapper
-    │   │   │   ├── ParticleField.tsx
-    │   │   │   ├── ScoreOrb.tsx
-    │   │   │   └── RadarChart3D.tsx
-    │   │   ├── upload/
-    │   │   │   ├── DropZone.tsx
-    │   │   │   └── FileList.tsx
-    │   │   ├── results/
-    │   │   │   ├── CandidateCard.tsx
-    │   │   │   ├── CandidateDetail.tsx
-    │   │   │   └── RankingTable.tsx
-    │   │   └── ui/                 ← shadcn/ui components
+    │   │   ├── three/              ← ParticleField, ScoreOrb, RadarChart3D
+    │   │   ├── upload/             ← DropZone, FileList
+    │   │   └── results/            ← CandidateCard, ScoreBar
     │   └── pages/
     │       ├── Home.tsx            ← Upload + job description input
     │       └── Results.tsx         ← Ranked candidate display
     ├── index.html
     ├── vite.config.ts
-    ├── tailwind.config.ts
+    ├── tailwind.config.js
     └── package.json
 ```
 
@@ -84,7 +76,7 @@ Content-Type: multipart/form-data
 
 job_description: string         (required, min 50 chars)
 files:           File[]          (required, 1–20 files, pdf/docx/txt, max 10MB each)
-top_k:           int = 10        (optional, max results to return)
+top_k:           int             (optional, 1–50; defaults to TOP_CANDIDATES_COUNT = 10)
 ```
 
 **Response `200`**
@@ -126,11 +118,14 @@ top_k:           int = 10        (optional, max results to return)
 // 422 — validation error (empty JD, no files, bad file type)
 { "detail": "Job description must be at least 50 characters." }
 
-// 413 — file too large
-{ "detail": "alice.pdf exceeds the 10MB limit." }
+// 413 — more files than MAX_FILES_PER_UPLOAD (default 20)
+{ "detail": "Too many files: 25. Maximum is 20." }
 
-// 500 — model/processing error
-{ "detail": "Embedding model failed: ..." }
+// 415 — unsupported file extension
+{ "detail": "Unsupported file type: resume.exe. Allowed: PDF, DOCX, TXT." }
+
+// 500 — internal error (details are logged server-side, not returned)
+{ "detail": "Processing failed due to an internal error." }
 ```
 
 ---
@@ -336,20 +331,21 @@ FastAPI will be configured to allow `http://localhost:5173` (Vite dev server) in
 
 ---
 
-## Local Dev Setup (once built)
+## Local Dev Setup
 
 ```bash
-# Terminal 1 — Backend
-cd backend
-uvicorn main:app --reload --port 8000
+# Terminal 1 — Backend (models load at startup)
+uv sync
+uv run uvicorn candidate_recommender.api.main:app --reload --port 8000
 
 # Terminal 2 — Frontend
 cd frontend
-npm run dev          # Vite serves on http://localhost:5173
+npm ci
+npm run dev          # Vite serves on http://localhost:5173, proxying /api to :8000
 
 # Terminal 3 — LLM (optional, for real summaries)
 ollama serve
 ollama pull llama3.2
 ```
 
-Production: `npm run build` outputs `frontend/dist/` which FastAPI serves as static files via `StaticFiles`.
+Production: `npm run build` outputs `frontend/dist/`, which FastAPI serves as static files (with a fallback to `index.html` for client routes like `/results`). `docker compose up --build` does all of this in one container, with Ollama alongside.

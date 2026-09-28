@@ -9,10 +9,10 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.dependencies import get_embedding_engine, get_summarizer
-from backend.main import app
-from core.embeddings import EmbeddingEngine
-from core.summarizer import CandidateSummarizer
+from candidate_recommender.api.dependencies import get_embedding_engine, get_summarizer
+from candidate_recommender.api.main import app
+from candidate_recommender.core.embeddings import EmbeddingEngine
+from candidate_recommender.core.summarizer import CandidateSummarizer
 
 JOB = (
     "Senior Python developer. Requirements: 5+ years of Python, Docker, "
@@ -39,7 +39,7 @@ def client():
 
     model.encode.side_effect = encode
 
-    with patch("core.embeddings.SentenceTransformer", return_value=model):
+    with patch("candidate_recommender.core.embeddings.SentenceTransformer", return_value=model):
         engine = EmbeddingEngine("test-model")
     with patch.object(CandidateSummarizer, "_check_ollama", return_value=False):
         summarizer = CandidateSummarizer()
@@ -58,7 +58,14 @@ def test_health(client):
 
 def test_rank_reports_all_processed_files_not_just_top_k(client):
     files = [
-        ("files", (f"candidate_{i}.txt", _resume(f"Person {i}", "Python and Docker, 6 years."), "text/plain"))
+        (
+            "files",
+            (
+                f"candidate_{i}.txt",
+                _resume(f"Person {i}", "Python and Docker, 6 years."),
+                "text/plain",
+            ),
+        )
         for i in range(3)
     ]
     resp = client.post("/api/rank", data={"job_description": JOB, "top_k": 2}, files=files)
@@ -86,11 +93,54 @@ def test_rank_with_only_unreadable_files_returns_422_detail(client):
 
 def test_extract(client):
     content = b"Jane Doe\njane@example.com\nSkills: Python, Docker, Kubernetes\n"
-    with patch("core.text_cleaner.TextCleaner.extract_skills_with_llm",
-               lambda self, text, **kw: self.extract_key_skills(text)):
+    with patch(
+        "candidate_recommender.core.text_cleaner.TextCleaner.extract_skills_with_llm",
+        lambda self, text, **kw: self.extract_key_skills(text),
+    ):
         resp = client.post("/api/extract", files={"file": ("jane_doe.txt", content, "text/plain")})
 
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["contact"]["email"] == "jane@example.com"
     assert {"Python", "Docker", "Kubernetes"} <= set(body["skills"])
+
+
+def test_rank_rejects_too_many_files(client):
+    from candidate_recommender.config import get_settings
+
+    limit = get_settings().max_files_per_upload
+    files = [
+        ("files", (f"r{i}.txt", _resume(f"Person {i}", "Python"), "text/plain"))
+        for i in range(limit + 1)
+    ]
+    resp = client.post("/api/rank", data={"job_description": JOB}, files=files)
+    assert resp.status_code == 413
+
+
+def test_internal_errors_do_not_leak_details(client):
+    with patch(
+        "candidate_recommender.api.routers.rank.run_ranking_pipeline",
+        side_effect=RuntimeError("secret internal path /opt/models"),
+    ):
+        files = [("files", ("a.txt", _resume("A", "Python"), "text/plain"))]
+        resp = client.post("/api/rank", data={"job_description": JOB}, files=files)
+
+    assert resp.status_code == 500
+    assert "secret" not in resp.json()["detail"]
+
+
+def test_spa_fallback_serves_index_for_client_routes(tmp_path):
+    from fastapi import FastAPI
+
+    from candidate_recommender.api.main import SPAStaticFiles
+
+    (tmp_path / "index.html").write_text("<div id=root></div>")
+    (tmp_path / "app.js").write_text("console.log(1)")
+    spa = FastAPI()
+    spa.mount("/", SPAStaticFiles(directory=tmp_path, html=True))
+    web = TestClient(spa)
+
+    assert web.get("/app.js").text == "console.log(1)"
+    assert web.get("/results").text == "<div id=root></div>"  # client route
+    assert web.get("/api/missing").status_code == 404  # API 404s stay 404s
+    assert web.get("/assets/missing.js").status_code == 404  # missing files stay 404s

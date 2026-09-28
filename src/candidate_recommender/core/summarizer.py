@@ -14,17 +14,18 @@ Supported models (set OLLAMA_MODEL env var):
     gemma2       — 9B, strong analytical writing
 """
 
-import hashlib
 import re
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 from loguru import logger
+
 from .text_cleaner import TextCleaner
 
 _text_cleaner = TextCleaner()
 
 try:
     import requests as _requests
+
     _HAS_REQUESTS = True
 except ImportError:
     _HAS_REQUESTS = False
@@ -101,7 +102,7 @@ class CandidateSummarizer:
         job_description: str,
         resume_text: str,
         composite_score: float,
-        matching_skills: Optional[List[str]] = None,
+        matching_skills: list[str] | None = None,
         skill_coverage: float = 0.0,
         experience_score: float = 0.0,
         enriched_context: str = "",
@@ -124,25 +125,33 @@ class CandidateSummarizer:
         if self._ollama_available:
             try:
                 return self._generate_ollama_summary(
-                    job_description, resume_text, composite_score,
-                    matching_skills, skill_coverage, experience_score,
+                    job_description,
+                    resume_text,
+                    composite_score,
+                    matching_skills,
+                    skill_coverage,
+                    experience_score,
                     enriched_context,
                 )
             except Exception as e:
                 logger.warning(f"Ollama summary failed: {e}; falling back to template")
 
         return self._generate_template_summary(
-            job_description, resume_text, composite_score,
-            matching_skills, skill_coverage, experience_score,
+            job_description,
+            resume_text,
+            composite_score,
+            matching_skills,
+            skill_coverage,
+            experience_score,
             enriched_context,
         )
 
     def batch_generate_summaries(
         self,
-        candidates: List[Dict[str, Any]],
+        candidates: list[dict[str, Any]],
         job_description: str,
-        enriched_contexts: Optional[Dict[str, str]] = None,
-    ) -> List[Dict[str, Any]]:
+        enriched_contexts: dict[str, str] | None = None,
+    ) -> list[dict[str, Any]]:
         """
         Add a 'fit_summary' field to each candidate dict.
 
@@ -188,7 +197,7 @@ class CandidateSummarizer:
         job_description: str,
         resume_text: str,
         composite_score: float,
-        matching_skills: Optional[List[str]],
+        matching_skills: list[str] | None,
         skill_coverage: float,
         experience_score: float,
         enriched_context: str = "",
@@ -199,11 +208,13 @@ class CandidateSummarizer:
 
         skills_line = (
             f"\nVerified matching skills: {', '.join(matching_skills[:12])}."
-            if matching_skills else ""
+            if matching_skills
+            else ""
         )
         enrichment_section = (
             f"\n\n--- Additional context from candidate's online presence ---\n{enriched_context[:900]}"
-            if enriched_context else ""
+            if enriched_context
+            else ""
         )
 
         prompt = f"""You are a senior technical recruiter writing a detailed, evidence-based candidate assessment report.
@@ -239,7 +250,7 @@ Do not use filler phrases like "strong candidate" or "great fit" unless you back
         job_description: str,
         resume_text: str,
         composite_score: float,
-        matching_skills: Optional[List[str]],
+        matching_skills: list[str] | None,
         skill_coverage: float,
         experience_score: float,
         enriched_context: str = "",
@@ -256,16 +267,26 @@ Do not use filler phrases like "strong candidate" or "great fit" unless you back
             matching_skills = sorted(job_skills & resume_skills)
 
         # Extract years of experience from resume
-        years_matches = re.findall(r'(\d+)\+?\s*years?', resume_text, re.IGNORECASE)
+        years_matches = re.findall(r"(\d+)\+?\s*years?", resume_text, re.IGNORECASE)
         max_years = max((int(y) for y in years_matches), default=0)
 
         # Seniority signals
-        seniority_words = ['senior', 'lead', 'principal', 'staff', 'architect',
-                           'manager', 'director', 'head of', 'vp ', 'vice president']
+        seniority_words = [
+            "senior",
+            "lead",
+            "principal",
+            "staff",
+            "architect",
+            "manager",
+            "director",
+            "head of",
+            "vp ",
+            "vice president",
+        ]
         is_senior = any(w in resume_text.lower() for w in seniority_words)
 
         # Education signals
-        has_phd = bool(re.search(r'\bph\.?d\b|doctorate', resume_text, re.IGNORECASE))
+        has_phd = bool(re.search(r"\bph\.?d\b|doctorate", resume_text, re.IGNORECASE))
         has_masters = bool(re.search(r"\bmaster'?s?\b|\bmsc\b|\bmba\b", resume_text, re.IGNORECASE))
 
         pct = composite_score * 100

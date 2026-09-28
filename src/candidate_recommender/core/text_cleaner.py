@@ -2,17 +2,17 @@
 Text cleaning and preprocessing utilities.
 """
 
-import re
 import hashlib
-from typing import Optional, List, Dict
-from loguru import logger
+import re
 
+from loguru import logger
 
 # Explicit skill registry: (regex_pattern, display_name)
 # Patterns are matched case-insensitively against the original text. Words that
 # are also ordinary English ("go", "rust", "spring", "rest", ...) use (?-i:...)
 # to require their usual capitalisation and/or list context, so prose like
 # "we go the extra mile" or "Spring 2023" doesn't register as a skill.
+# fmt: off
 _LIST_BEFORE = r'(?:(?<=[,/;(:])\s*)'   # preceded by a list separator
 _LIST_AFTER = r'(?=\s*[,/;)])'          # followed by a list separator
 
@@ -125,10 +125,9 @@ SKILL_REGISTRY = [
     (r'\bcelery\b',          'Celery'),
     (r'\bpydantic\b',        'Pydantic'),
 ]
+# fmt: on
 
-_COMPILED_SKILLS = [
-    (re.compile(pattern, re.IGNORECASE), name) for pattern, name in SKILL_REGISTRY
-]
+_COMPILED_SKILLS = [(re.compile(pattern, re.IGNORECASE), name) for pattern, name in SKILL_REGISTRY]
 
 
 class TextCleaner:
@@ -154,21 +153,21 @@ class TextCleaner:
 
         try:
             # Collapse whitespace
-            text = re.sub(r'\s+', ' ', text)
+            text = re.sub(r"\s+", " ", text)
 
             # Remove characters that are truly noise (control chars, zero-width etc.)
             # but keep: letters, digits, spaces, and common punctuation including
             # @, /, +, #, & which appear in skill names and contact info
-            text = re.sub(r'[^\w\s\.\,\;\:\!\?\-\(\)\@\/\+\#\&]', '', text)
+            text = re.sub(r"[^\w\s\.\,\;\:\!\?\-\(\)\@\/\+\#\&]", "", text)
 
             # Collapse repeated punctuation (e.g. "..." → ".")
-            text = re.sub(r'([.,;:!?])\1+', r'\1', text)
+            text = re.sub(r"([.,;:!?])\1+", r"\1", text)
 
             text = text.strip()
 
             if len(text) > self.max_length:
                 logger.warning(f"Text truncated from {len(text)} to {self.max_length} chars")
-                text = text[:self.max_length]
+                text = text[: self.max_length]
 
             return text
 
@@ -176,7 +175,7 @@ class TextCleaner:
             logger.error(f"Error cleaning text: {e}")
             return text
 
-    def extract_candidate_name(self, text: str, filename: Optional[str] = None) -> str:
+    def extract_candidate_name(self, text: str, filename: str | None = None) -> str:
         """
         Extract candidate name from resume text or filename.
 
@@ -184,24 +183,24 @@ class TextCleaner:
         """
         # Try filename first
         if filename:
-            name = filename.rsplit('.', 1)[0]
-            name = re.sub(r'[_\-]', ' ', name)
-            name = re.sub(r'resume|cv|curriculum|vitae', '', name, flags=re.IGNORECASE)
+            name = filename.rsplit(".", 1)[0]
+            name = re.sub(r"[_\-]", " ", name)
+            name = re.sub(r"resume|cv|curriculum|vitae", "", name, flags=re.IGNORECASE)
             name = name.strip()
             if len(name) > 2:
                 return name.title()
 
         # Look in first 5 lines for a 2-4 word all-alpha sequence (likely a name)
-        for line in text.split('\n')[:5]:
+        for line in text.split("\n")[:5]:
             line = line.strip()
             words = line.split()
-            if 2 <= len(words) <= 4 and all(w.replace('-', '').isalpha() for w in words):
-                return ' '.join(words).title()
+            if 2 <= len(words) <= 4 and all(w.replace("-", "").isalpha() for w in words):
+                return " ".join(words).title()
 
         text_hash = hashlib.md5(text.encode()).hexdigest()[:8]
         return f"Candidate_{text_hash}"
 
-    def extract_key_skills(self, text: str, limit: Optional[int] = None) -> List[str]:
+    def extract_key_skills(self, text: str, limit: int | None = None) -> list[str]:
         """
         Extract skills from text using the SKILL_REGISTRY.
 
@@ -222,7 +221,7 @@ class TextCleaner:
         text: str,
         base_url: str = "http://localhost:11434",
         model: str = "llama3.2",
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Use Ollama to extract skills from text.
 
@@ -276,7 +275,7 @@ class TextCleaner:
         # Fallback
         return self.extract_key_skills(text)
 
-    def extract_required_skills(self, job_text: str) -> List[str]:
+    def extract_required_skills(self, job_text: str) -> list[str]:
         """
         Extract skills from a job description that appear to be requirements.
 
@@ -295,86 +294,93 @@ class TextCleaner:
             logger.warning(f"Short text ({len(text)} chars) may reduce embedding quality")
         return text
 
-    def extract_contact_details(self, text: str) -> Dict[str, Optional[str]]:
+    def extract_contact_details(self, text: str) -> dict[str, str | None]:
         """
         Extract contact information from raw resume text.
 
         Always call this on the *original* (uncleaned) text so that
         characters like @ and / are still present.
         """
-        contact: Dict[str, Optional[str]] = {
-            'email': None,
-            'phone': None,
-            'linkedin': None,
-            'github': None,
-            'location': None,
-            'website': None,
+        contact: dict[str, str | None] = {
+            "email": None,
+            "phone": None,
+            "linkedin": None,
+            "github": None,
+            "location": None,
+            "website": None,
         }
 
         # Email
-        emails = re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,7}\b', text)
+        emails = re.findall(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,7}\b", text)
         if emails:
-            noise = ('noreply', 'support', 'info@', 'admin@', 'no-reply')
+            noise = ("noreply", "support", "info@", "admin@", "no-reply")
             personal = [e for e in emails if not any(n in e.lower() for n in noise)]
-            contact['email'] = personal[0] if personal else emails[0]
+            contact["email"] = personal[0] if personal else emails[0]
 
         # Phone (US + international, with optional extension)
         phone_patterns = [
-            r'(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?:\s*(?:x|ext\.?)\s*\d{1,6})?',
-            r'\+?[1-9]\d{0,2}[-.\s]\d{2,4}[-.\s]\d{4,8}',
-            r'\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b',
+            r"(?:\+?1[-.\s]?)?\(?[2-9]\d{2}\)?[-.\s]?\d{3}[-.\s]?\d{4}(?:\s*(?:x|ext\.?)\s*\d{1,6})?",
+            r"\+?[1-9]\d{0,2}[-.\s]\d{2,4}[-.\s]\d{4,8}",
+            r"\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b",
         ]
         for pattern in phone_patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 raw = match.group(0).strip()
-                digits = re.sub(r'\D', '', raw)
+                digits = re.sub(r"\D", "", raw)
                 if 10 <= len(digits) <= 15:
-                    contact['phone'] = raw
+                    contact["phone"] = raw
                     break
 
         # LinkedIn
-        for pattern in [r'linkedin\.com/in/([A-Za-z0-9\-_]+)',
-                         r'linkedin\.com/pub/([A-Za-z0-9\-_]+)']:
+        for pattern in [
+            r"linkedin\.com/in/([A-Za-z0-9\-_]+)",
+            r"linkedin\.com/pub/([A-Za-z0-9\-_]+)",
+        ]:
             m = re.search(pattern, text, re.IGNORECASE)
             if m:
-                contact['linkedin'] = f"linkedin.com/in/{m.group(1)}"
+                contact["linkedin"] = f"linkedin.com/in/{m.group(1)}"
                 break
 
         # GitHub
-        m = re.search(r'github\.com/([A-Za-z0-9\-_]+)', text, re.IGNORECASE)
+        m = re.search(r"github\.com/([A-Za-z0-9\-_]+)", text, re.IGNORECASE)
         if m:
-            contact['github'] = f"github.com/{m.group(1)}"
+            contact["github"] = f"github.com/{m.group(1)}"
 
         # Location — try labelled indicators first, then "City, ST" pattern
-        for indicator in ['Location', 'Address', 'Based in', 'Lives in', 'Residing in']:
+        for indicator in ["Location", "Address", "Based in", "Lives in", "Residing in"]:
             m = re.search(
-                rf'{indicator}[\s:]*([A-Za-z][A-Za-z\s]+(?:,\s*[A-Za-z\s]{{2,}})?)',
-                text, re.IGNORECASE
+                rf"{indicator}[\s:]*([A-Za-z][A-Za-z\s]+(?:,\s*[A-Za-z\s]{{2,}})?)",
+                text,
+                re.IGNORECASE,
             )
             if m:
                 loc = m.group(1).strip()
-                if len(loc) > 3 and ',' in loc:
-                    contact['location'] = loc
+                if len(loc) > 3 and "," in loc:
+                    contact["location"] = loc
                     break
 
-        if not contact['location']:
+        if not contact["location"]:
             # US "City, ST" pattern
-            m = re.search(r'\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)*,\s*[A-Z]{2})\b', text)
+            m = re.search(r"\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)*,\s*[A-Z]{2})\b", text)
             if m:
-                contact['location'] = m.group(1)
+                contact["location"] = m.group(1)
 
         # Website / portfolio — match labelled URLs or bare domains
         m = re.search(
-            r'(?:website|portfolio|personal site|www)[\s:]*(?:https?://)?([A-Za-z0-9\-]+\.[A-Za-z]{2,}(?:/[^\s]*)?)',
-            text, re.IGNORECASE
+            r"(?:website|portfolio|personal site|www)[\s:]*(?:https?://)?([A-Za-z0-9\-]+\.[A-Za-z]{2,}(?:/[^\s]*)?)",
+            text,
+            re.IGNORECASE,
         )
         if m:
-            contact['website'] = m.group(1)
+            contact["website"] = m.group(1)
         else:
             # Bare https:// URL that isn't LinkedIn/GitHub
-            m = re.search(r'https?://(?!(?:www\.)?(linkedin|github))([A-Za-z0-9\-.]+\.[A-Za-z]{2,}(?:/[^\s]*)?)', text)
+            m = re.search(
+                r"https?://(?!(?:www\.)?(linkedin|github))([A-Za-z0-9\-.]+\.[A-Za-z]{2,}(?:/[^\s]*)?)",
+                text,
+            )
             if m:
-                contact['website'] = m.group(0)
+                contact["website"] = m.group(0)
 
         return contact

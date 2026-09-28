@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from typing import List, Optional
 from pydantic import BaseModel
 
 
 class ContactInfo(BaseModel):
-    email: Optional[str] = None
-    phone: Optional[str] = None
-    linkedin: Optional[str] = None
-    github: Optional[str] = None
-    location: Optional[str] = None
-    website: Optional[str] = None
+    email: str | None = None
+    phone: str | None = None
+    linkedin: str | None = None
+    github: str | None = None
+    location: str | None = None
+    website: str | None = None
 
 
 class CandidateResult(BaseModel):
@@ -25,7 +24,7 @@ class CandidateResult(BaseModel):
     category: str
     category_emoji: str
     category_color: str
-    matching_skills: List[str]
+    matching_skills: list[str]
     fit_summary: str
     contact: ContactInfo
 
@@ -34,12 +33,12 @@ class RankResponse(BaseModel):
     total_processed: int
     total_duration_ms: int
     job_description: str
-    candidates: List[CandidateResult]
+    candidates: list[CandidateResult]
 
 
 class ExtractResponse(BaseModel):
     candidate_name: str
-    skills: List[str]
+    skills: list[str]
     contact: ContactInfo
 
 

@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from backend.dependencies import get_embedding_engine, get_summarizer
-from backend.schemas.responses import HealthResponse
-from core.embeddings import EmbeddingEngine
-from core.summarizer import CandidateSummarizer
+from candidate_recommender.api.dependencies import get_embedding_engine, get_summarizer
+from candidate_recommender.api.schemas.responses import HealthResponse
+from candidate_recommender.core.embeddings import EmbeddingEngine
+from candidate_recommender.core.summarizer import CandidateSummarizer
 
 router = APIRouter(tags=["health"])
 

@@ -1,4 +1,4 @@
-import { useRef, useMemo } from 'react'
+import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 
@@ -6,19 +6,21 @@ interface Props {
   fileCount: number
 }
 
+const COUNT = 800
+
+// Generated once at module load — random values can't be produced during render.
+const POSITIONS = (() => {
+  const arr = new Float32Array(COUNT * 3)
+  for (let i = 0; i < COUNT; i++) {
+    arr[i * 3]     = (Math.random() - 0.5) * 22
+    arr[i * 3 + 1] = (Math.random() - 0.5) * 22
+    arr[i * 3 + 2] = (Math.random() - 0.5) * 22
+  }
+  return arr
+})()
+
 export function ParticleField({ fileCount }: Props) {
   const ref = useRef<THREE.Points>(null)
-  const count = 800
-
-  const positions = useMemo(() => {
-    const arr = new Float32Array(count * 3)
-    for (let i = 0; i < count; i++) {
-      arr[i * 3]     = (Math.random() - 0.5) * 22
-      arr[i * 3 + 1] = (Math.random() - 0.5) * 22
-      arr[i * 3 + 2] = (Math.random() - 0.5) * 22
-    }
-    return arr
-  }, [])
 
   useFrame(({ clock }) => {
     if (!ref.current) return
@@ -34,7 +36,7 @@ export function ParticleField({ fileCount }: Props) {
       <bufferGeometry>
         <bufferAttribute
           attach="attributes-position"
-          args={[positions, 3]}
+          args={[POSITIONS, 3]}
         />
       </bufferGeometry>
       <pointsMaterial

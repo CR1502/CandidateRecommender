@@ -1,38 +1,49 @@
-# Use Python 3.10 slim image
-FROM python:3.10-slim
+# syntax=docker/dockerfile:1
 
-# Set working directory
+# ---- Stage 1: build the React frontend -------------------------------------
+FROM node:22-slim AS frontend
+WORKDIR /app/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
+# ---- Stage 2: Python runtime (FastAPI serves the API and the built frontend) -
+FROM python:3.12-slim AS runtime
+COPY --from=ghcr.io/astral-sh/uv:0.12.19 /uv /bin/uv
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    PATH="/opt/venv/bin:$PATH" \
+    HF_HOME=/opt/hf-cache \
+    PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    curl \
-    git \
-    && rm -rf /var/lib/apt/lists/*
+# Dependencies first so code changes don't invalidate this (large) layer.
+# Linux resolves torch from the CPU-only index (see pyproject.toml).
+COPY pyproject.toml uv.lock README.md ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-install-project
 
-# Copy requirements first for better caching
-COPY requirements.txt .
-
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Download models during build to include in image
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
-RUN python -c "from transformers import T5ForConditionalGeneration, T5Tokenizer; T5Tokenizer.from_pretrained('google/flan-t5-small'); T5ForConditionalGeneration.from_pretrained('google/flan-t5-small')"
-
-# Copy application code
 COPY src/ ./src/
-COPY data/ ./data/
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --locked --no-dev --no-editable
 
-# Create directories for logs and models
-RUN mkdir -p logs models
+# Bake the embedding model into the image so startup doesn't download it.
+ARG EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
+ENV EMBEDDING_MODEL=${EMBEDDING_MODEL}
+RUN python -c "import os; from sentence_transformers import SentenceTransformer; SentenceTransformer(os.environ['EMBEDDING_MODEL'])"
 
-# Expose Streamlit port
-EXPOSE 8501
+COPY --from=frontend /app/frontend/dist ./frontend/dist
+ENV FRONTEND_DIST=/app/frontend/dist
 
-# Health check
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health
+RUN useradd --create-home --uid 1000 app && chown -R app /opt/hf-cache
+USER app
 
-# Run Streamlit app
-CMD ["streamlit", "run", "src/app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+EXPOSE 8000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=4)"
+
+CMD ["uvicorn", "candidate_recommender.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
