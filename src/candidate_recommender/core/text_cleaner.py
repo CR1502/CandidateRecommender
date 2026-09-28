@@ -129,6 +129,28 @@ SKILL_REGISTRY = [
 
 _COMPILED_SKILLS = [(re.compile(pattern, re.IGNORECASE), name) for pattern, name in SKILL_REGISTRY]
 
+# Job-description section headers after which skills are optional.
+_NICE_TO_HAVE = re.compile(
+    r"\b(?:nice[\s-]to[\s-]haves?|preferred\s+(?:qualifications|skills|experience)|bonus\s+points)\b",
+    re.IGNORECASE,
+)
+NICE_TO_HAVE_WEIGHT = 0.5
+
+# Resume lines that are a skills list rather than a description of work.
+_SKILLS_HEADER = re.compile(
+    r"^\s*(?:technical\s+)?(?:skills|technologies|tech\s+stack|tools|languages|frameworks|"
+    r"core\s+competencies)\b",
+    re.IGNORECASE,
+)
+LISTED_ONLY_CREDIT = 0.5
+
+
+def _is_skill_list_line(line: str) -> bool:
+    if _SKILLS_HEADER.match(line):
+        return True
+    items = [i.strip() for i in re.split(r"[,;|•·]", line) if i.strip()]
+    return len(items) >= 5 and sum(len(i.split()) <= 3 for i in items) / len(items) >= 0.8
+
 
 class TextCleaner:
     """Clean and preprocess text for embedding generation."""
@@ -157,8 +179,8 @@ class TextCleaner:
 
             # Remove characters that are truly noise (control chars, zero-width etc.)
             # but keep: letters, digits, spaces, and common punctuation including
-            # @, /, +, #, & which appear in skill names and contact info
-            text = re.sub(r"[^\w\s\.\,\;\:\!\?\-\(\)\@\/\+\#\&]", "", text)
+            # @, /, +, #, &, % which appear in skill names, contact info, and metrics
+            text = re.sub(r"[^\w\s\.\,\;\:\!\?\-\(\)\@\/\+\#\&\%]", "", text)
 
             # Collapse repeated punctuation (e.g. "..." → ".")
             text = re.sub(r"([.,;:!?])\1+", r"\1", text)
@@ -264,28 +286,85 @@ class TextCleaner:
                     skills = _json.loads(m.group(0))
                     if isinstance(skills, list):
                         cleaned = [
-                            str(s).strip()
-                            for s in skills
-                            if s and isinstance(s, str) and len(str(s)) < 60
+                            s.strip() for s in skills if s and isinstance(s, str) and len(s) < 60
                         ]
-                        return cleaned[:25]
+                        return self.canonicalize_skills(cleaned)[:25]
         except Exception as e:
             logger.debug(f"LLM skill extraction failed: {e}")
 
         # Fallback
         return self.extract_key_skills(text)
 
-    def extract_required_skills(self, job_text: str) -> list[str]:
+    def canonicalize_skill(self, name: str) -> str:
         """
-        Extract skills from a job description that appear to be requirements.
+        Map a free-form skill name (e.g. from the LLM) onto its SKILL_REGISTRY
+        display name — "React.js" → "React", "Postgres" → "PostgreSQL",
+        "k8s" → "Kubernetes" — so skills from different sources compare equal.
+        When several registry skills match ("React.js" is also a JavaScript
+        mention), the one whose match covers most of the name wins, provided
+        it covers at least 60% of it; otherwise ("Docker and Kubernetes") the
+        name is returned stripped, as it is when nothing matches.
+        """
+        name = name.strip()
+        probe = f", {name},"  # list context, which some registry patterns require
+        hits: dict[str, int] = {}
+        for pattern, display in _COMPILED_SKILLS:
+            m = pattern.search(probe)
+            if m:
+                hits[display] = max(hits.get(display, 0), len(m.group(0).strip(" ,")))
+        if len(hits) == 1:
+            return next(iter(hits))
+        if hits:
+            best, length = max(hits.items(), key=lambda kv: kv[1])
+            if length >= 0.6 * len(name):
+                return best
+        return name
 
-        Looks for skills near requirement signal words (required, must, need, etc.)
-        as well as bare skill mentions, since most JDs list them explicitly.
+    def canonicalize_skills(self, names: list[str]) -> list[str]:
+        """Canonicalise and de-duplicate (case-insensitively), keeping order."""
+        seen: set[str] = set()
+        result = []
+        for name in names:
+            canonical = self.canonicalize_skill(name)
+            if canonical and canonical.lower() not in seen:
+                seen.add(canonical.lower())
+                result.append(canonical)
+        return result
+
+    def extract_required_skills(self, job_text: str) -> list[str]:
+        """Skills a job description asks for, required or nice-to-have."""
+        return list(self.job_skill_weights(job_text))
+
+    def job_skill_weights(self, job_text: str) -> dict[str, float]:
         """
-        # For now this is the same as extract_key_skills — job descriptions tend
-        # to list skills directly. A future improvement would weight skills that
-        # appear near "required" / "must have" higher.
-        return self.extract_key_skills(job_text)
+        Skills in a job description with an importance weight: 1.0 for
+        skills in the main text, NICE_TO_HAVE_WEIGHT for skills that appear
+        only after a "Nice to have" / "Preferred qualifications" header.
+        Works on raw or cleaned (single-line) text.
+        """
+        marker = _NICE_TO_HAVE.search(job_text)
+        core_text = job_text[: marker.start()] if marker else job_text
+        nice_text = job_text[marker.end() :] if marker else ""
+
+        weights = dict.fromkeys(self.extract_key_skills(core_text), 1.0)
+        for skill in self.extract_key_skills(nice_text):
+            weights.setdefault(skill, NICE_TO_HAVE_WEIGHT)
+        return weights
+
+    def skill_evidence(self, resume_text: str) -> dict[str, float]:
+        """
+        Credit per skill found in a resume: 1.0 when the skill appears in a
+        description of work, LISTED_ONLY_CREDIT when it appears only in a
+        skills list. A bare list of buzzwords shouldn't outscore someone who
+        describes using the tools. Needs line breaks (raw text) to tell the
+        two apart; single-line text gets full credit throughout.
+        """
+        evidence: dict[str, float] = {}
+        for line in resume_text.splitlines() or [resume_text]:
+            credit = LISTED_ONLY_CREDIT if _is_skill_list_line(line) else 1.0
+            for skill in self.extract_key_skills(line):
+                evidence[skill] = max(evidence.get(skill, 0.0), credit)
+        return evidence
 
     def prepare_for_embedding(self, text: str) -> str:
         """Clean text for embedding generation."""

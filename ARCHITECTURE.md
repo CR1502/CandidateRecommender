@@ -33,12 +33,14 @@ CandidateRecommender/
 │   │       └── pipeline.py         ← Orchestrates file → embed → rank → enrich → summarise
 │   └── core/                       ← ML + text processing
 │       ├── embeddings.py
+│       ├── experience.py
 │       ├── enricher.py
 │       ├── summarizer.py
 │       ├── text_cleaner.py
 │       └── file_processor.py
 │
 ├── tests/                          ← pytest suite (models mocked)
+├── eval/                           ← labelled ranking dataset + run_eval.py
 │
 └── frontend/                       ← React + Vite app
     ├── src/
@@ -92,9 +94,10 @@ top_k:           int             (optional, 1–50; defaults to TOP_CANDIDATES_C
       "filename": "alice_johnson.pdf",
       "percentage_score": 87.3,
       "composite_score": 0.873,
-      "similarity_score": 0.86,
-      "skill_coverage_score": 0.86,
-      "experience_score": 1.0,
+      "similarity_score": 0.81,          // raw cosine similarity
+      "semantic_score": 0.9,             // calibrated 0–1 (used in the composite)
+      "skill_coverage_score": 0.86,      // null if the job lists no known skills
+      "experience_score": 1.0,           // null if the job states no years
       "category": "Perfect Match",
       "category_emoji": "🌟",
       "category_color": "#00D26A",
@@ -203,7 +206,8 @@ BACKEND (FastAPI)
  │  ┌─────────────────────────────────────────┐
  │  │  EmbeddingEngine.rank_candidates()       │
  │  │    → deduplication                       │
- │  │    → bge-small embeddings (batched)      │
+ │  │    → bge-small embeddings of 250-word    │
+ │  │      chunks (batched)                    │
  │  │    → composite score per candidate       │
  │  │      (semantic 60% + skills 30% + exp 10%)│
  │  │    → sorted results                      │

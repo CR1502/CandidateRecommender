@@ -13,9 +13,10 @@ export interface Candidate {
   filename: string
   percentage_score: number
   composite_score: number
-  similarity_score: number
-  skill_coverage_score: number
-  experience_score: number
+  similarity_score: number              // raw cosine similarity
+  semantic_score: number                // calibrated 0–1 semantic match
+  skill_coverage_score: number | null   // null: job lists no recognisable skills
+  experience_score: number | null       // null: job states no years of experience
   category: string
   category_emoji: string
   category_color: string

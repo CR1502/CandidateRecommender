@@ -1,0 +1,19 @@
+Machine Learning Engineer — NLP
+
+Join our applied AI team building language features for a customer-support platform used by 2,000 companies.
+
+Responsibilities
+- Fine-tune and evaluate large language models and transformer models for classification, retrieval, and summarization
+- Build training and evaluation pipelines in PyTorch using HuggingFace libraries
+- Ship models to production with our MLOps stack (Docker, Kubernetes, MLflow) and monitor quality in production
+- Work with product managers to turn research ideas into features
+
+Requirements
+- 3+ years of hands-on machine learning engineering experience
+- Strong Python and PyTorch
+- Practical NLP experience with transformers / LLMs (fine-tuning, embeddings, RAG)
+- Experience deploying models to production
+
+Nice to have
+- Publications or open-source contributions in NLP
+- Experience with vector databases and retrieval systems

@@ -1,0 +1,16 @@
+Viktor Nowak
+viktor.nowak@example.com | Seattle, WA
+
+Site reliability engineer with 7 years of experience running large Kubernetes platforms.
+
+Senior SRE — Streamwave                                           2020 – Present
+- Operate 40 Kubernetes clusters on AWS (EKS) across three regions
+- Terraform modules for all infrastructure; Atlantis-based review workflow
+- Built the Prometheus/Grafana/Alertmanager stack; reduced pages by 60% with SLO-based alerting
+- Incident commander; wrote the postmortem process
+- Automation in Python and Bash; CI/CD with GitHub Actions and Helm
+
+Systems Engineer — Datahaus                                       2017 – 2020
+- Linux fleet management with Ansible; networking and load balancing (HAProxy, NGINX)
+
+Skills: Kubernetes, AWS, Terraform, Helm, Prometheus, Grafana, Linux, Python, Bash, Ansible, GitHub Actions, networking

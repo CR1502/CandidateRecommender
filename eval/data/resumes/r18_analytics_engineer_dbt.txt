@@ -1,0 +1,14 @@
+Chloe Martin
+chloe.martin@example.com | Minneapolis, MN
+
+Analytics engineer, 3 years of experience.
+
+Analytics Engineer — Greenleaf Foods                              2023 – Present
+- Own the dbt project (180 models) on Snowflake; tests, docs, and CI
+- Build Looker explores and dashboards for finance and supply chain
+- SQL performance tuning and data quality monitoring
+
+Data Analyst — Greenleaf Foods                                    2022 – 2023
+- SQL and Excel reporting; Python for data cleaning
+
+Skills: SQL, dbt, Snowflake, Looker, Python, Git, Excel

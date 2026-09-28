@@ -1,0 +1,14 @@
+Jordan Blake
+jordan.blake@example.com | Remote
+
+Full-stack developer, 3 years of experience.
+
+Full-Stack Developer — Taskline                                   2023 – Present
+- React and TypeScript frontend; Node.js and Express backend
+- MongoDB and PostgreSQL; REST and GraphQL APIs
+- Deployed on AWS with Docker
+
+Web Developer — Freelance                                         2022 – 2023
+- Built React sites for local businesses
+
+Skills: JavaScript, TypeScript, React, Node.js, Express, MongoDB, PostgreSQL, GraphQL, Docker, AWS

@@ -1,0 +1,15 @@
+Brian Foster
+brian.foster@example.com | Tampa, FL
+
+SKILLS
+Python, Java, JavaScript, TypeScript, React, Angular, Node.js, Django, FastAPI, PostgreSQL, MongoDB, Docker, Kubernetes, AWS, Azure, GCP, Terraform, PyTorch, TensorFlow, Machine Learning, Spark, Kafka, Airflow, Snowflake, dbt, CI/CD, Linux, Git, Agile
+
+EXPERIENCE
+Store Manager — Sunshine Outdoor Supply                           2016 – Present
+- Manage a team of 14 associates and store operations with $3M annual sales
+- Scheduling, hiring, inventory counts, and vendor relationships
+- Increased store sales 12% through merchandising changes
+
+Assistant Store Manager — Sunshine Outdoor Supply                 2013 – 2016
+
+Completed an online "Intro to Programming" course in 2024.

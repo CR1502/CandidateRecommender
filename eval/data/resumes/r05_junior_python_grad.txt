@@ -1,0 +1,19 @@
+Aisha Karimi
+aisha.karimi@example.com | Boston, MA | github.com/aishakarimi
+
+EDUCATION
+B.S. Computer Science, Northeastern University — May 2026
+
+EXPERIENCE
+Software Engineering Co-op — HealthBridge                         Jan 2025 – Jun 2025
+- Added endpoints to an internal FastAPI service and wrote pytest tests
+- Fixed bugs in a React admin dashboard
+
+Teaching Assistant — Fundamentals of Computer Science             Sep 2024 – Dec 2024
+
+PROJECTS
+- Course scheduler: Python, FastAPI, SQLite, Docker
+- Discord bot for study groups: Python
+
+SKILLS
+Python, Java, FastAPI, SQL, Git, Docker (basic), React (basic)

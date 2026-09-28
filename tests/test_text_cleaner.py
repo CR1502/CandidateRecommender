@@ -90,3 +90,72 @@ class TestNameExtraction:
 
     def test_from_first_lines(self, cleaner):
         assert cleaner.extract_candidate_name("Jane Doe\nEngineer", "cv.pdf") == "Jane Doe"
+
+
+class TestJobSkillWeights:
+    def test_nice_to_have_section_gets_lower_weight(self, cleaner):
+        jd = "Requirements\n- Python and Docker\n\nNice to have\n- Redis, Kafka"
+        assert cleaner.job_skill_weights(jd) == {
+            "Python": 1.0,
+            "Docker": 1.0,
+            "Redis": 0.5,
+            "Kafka": 0.5,
+        }
+
+    def test_skill_in_both_sections_keeps_full_weight(self, cleaner):
+        jd = "Must know Python. Preferred qualifications: Python and Redis"
+        assert cleaner.job_skill_weights(jd)["Python"] == 1.0
+
+    def test_works_on_cleaned_single_line_text(self, cleaner):
+        jd = cleaner.prepare_for_embedding("Requirements:\nPython\nBonus points:\nRedis")
+        assert cleaner.job_skill_weights(jd) == {"Python": 1.0, "Redis": 0.5}
+
+
+class TestSkillEvidence:
+    def test_described_vs_listed(self, cleaner):
+        resume = (
+            "- Built payment APIs in Python with FastAPI\n"
+            "SKILLS\n"
+            "Python, FastAPI, Docker, Kubernetes, Terraform"
+        )
+        evidence = cleaner.skill_evidence(resume)
+        assert evidence["Python"] == 1.0 and evidence["FastAPI"] == 1.0
+        assert evidence["Docker"] == 0.5 and evidence["Terraform"] == 0.5
+
+    def test_labelled_skill_lines_count_as_lists(self, cleaner):
+        assert cleaner.skill_evidence("Languages: Python, Go")["Python"] == 0.5
+
+    def test_prose_with_a_short_list_is_not_a_skills_list(self, cleaner):
+        line = "- Moved services to Kubernetes on AWS with Docker and Terraform"
+        assert cleaner.skill_evidence(line)["Kubernetes"] == 1.0
+
+
+class TestCanonicalizeSkill:
+    @pytest.mark.parametrize(
+        "raw, canonical",
+        [
+            ("React.js", "React"),
+            ("reactjs", "React"),
+            ("Postgres", "PostgreSQL"),
+            ("k8s", "Kubernetes"),
+            ("Amazon Web Services", "AWS"),
+            ("Go", "Go"),
+            ("golang", "Go"),
+            ("  Scikit-learn ", "scikit-learn"),
+            ("Machine learning", "Machine Learning"),
+        ],
+    )
+    def test_maps_aliases_to_registry_names(self, cleaner, raw, canonical):
+        assert cleaner.canonicalize_skill(raw) == canonical
+
+    def test_unknown_and_ambiguous_names_are_kept(self, cleaner):
+        assert cleaner.canonicalize_skill(" Figma ") == "Figma"
+        assert cleaner.canonicalize_skill("Docker and Kubernetes") == "Docker and Kubernetes"
+
+    def test_canonicalize_skills_dedupes_case_insensitively(self, cleaner):
+        names = ["React.js", "React", "figma", "Figma", "Postgres"]
+        assert cleaner.canonicalize_skills(names) == ["React", "figma", "PostgreSQL"]
+
+
+def test_clean_text_keeps_percent(cleaner):
+    assert "32% year over year" in cleaner.clean_text("ROAS up 32% year over year")

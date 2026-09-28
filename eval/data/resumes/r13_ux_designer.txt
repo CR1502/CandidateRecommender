@@ -1,0 +1,14 @@
+Leila Haddad
+leila.haddad@example.com | Los Angeles, CA | leilahaddad.design
+
+Product designer with 5 years of experience designing web and mobile products.
+
+Senior Product Designer — Fitloop                                 2021 – Present
+- Own end-to-end design for the subscription app: research, wireframes, prototypes, visual design
+- Built the Figma design system and documentation; partner with frontend engineers on implementation
+- Run usability studies and turn findings into roadmap proposals
+
+Product Designer — Brandwell Studio                               2019 – 2021
+- Websites and brand identities; basic HTML/CSS prototypes
+
+Skills: Figma, prototyping, user research, design systems, interaction design, HTML, CSS

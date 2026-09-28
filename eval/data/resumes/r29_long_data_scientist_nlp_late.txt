@@ -1,0 +1,28 @@
+Wei Zhang
+wei.zhang@example.com | Seattle, WA
+
+SUMMARY
+Data scientist with six years of experience in e-commerce and marketplace companies. I enjoy the full arc of a data science project: framing the business question, getting the data right, building a model that is as simple as it can be, and making sure the result changes a decision. Most of my early career was in forecasting and experimentation; over the last two years my work has moved toward language models and search.
+
+EXPERIENCE
+Senior Data Scientist — Marketnest (online marketplace)                   2021 – Present
+- Partnered with the pricing team on a demand forecasting system for 2 million listings, reducing stock-outs in the top categories by 14%
+- Designed the company's experimentation guidelines, including sequential testing and variance reduction with CUPED
+- Built the seller churn model and the intervention playbook used by the account management team
+- Presented monthly insights to the VP of Marketplace and product leadership
+- In the last two years, moved to the search relevance team:
+  - Fine-tuned transformer models (BERT, then a small Llama model with LoRA) in PyTorch with HuggingFace to classify search queries into 3,000 product categories
+  - Built an embedding-based retrieval prototype with sentence-transformers and FAISS that improved recall@50 by 11% in offline evaluation
+  - Created the offline evaluation set and labeling guidelines for query relevance
+  - Worked with ML engineers to deploy the query classifier behind an internal API
+
+Data Scientist — Shopwise                                                 2019 – 2021
+- Customer lifetime value and marketing mix models in Python and R
+- A/B test analysis for checkout and onboarding changes
+- Dashboards in Tableau and ad-hoc SQL analysis
+
+SKILLS
+Python, SQL, R, pandas, scikit-learn, PyTorch, HuggingFace, transformers, NLP, FAISS, experimentation, forecasting, Tableau
+
+EDUCATION
+M.S. Statistics, University of Michigan

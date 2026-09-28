@@ -105,7 +105,9 @@ def _run_ranking_sync(
             )
         else:
             resume_skills = set(_text_cleaner.extract_key_skills(raw))
-        candidate["matching_skills"] = sorted(jd_skills & resume_skills)
+        # LLM names are canonicalised to registry names; compare case-insensitively too
+        jd_lower = {s.lower() for s in jd_skills}
+        candidate["matching_skills"] = sorted(s for s in resume_skills if s.lower() in jd_lower)
 
     # --- 5. URL enrichment: follow GitHub + portfolio links ---
     # Stored on the candidate itself: names (and filenames) can collide.
@@ -190,6 +192,7 @@ def _to_candidate_result(c: dict) -> CandidateResult:
         percentage_score=c["percentage_score"],
         composite_score=c["composite_score"],
         similarity_score=c["similarity_score"],
+        semantic_score=c["semantic_score"],
         skill_coverage_score=c["skill_coverage_score"],
         experience_score=c["experience_score"],
         category=c["category"],

@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 from pathlib import Path
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 from pydantic import BaseModel, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -58,6 +58,18 @@ class Settings(BaseSettings):
     ollama_timeout: int = 60
 
     scoring_weights: ScoringWeights = ScoringWeights()
+    # Raw cosine similarity is rescaled from [floor, ceiling] onto 0–1. Model
+    # specific: measured on eval/ for bge-small (unrelated pairs ~0.45–0.6,
+    # strong matches ~0.8). Re-tune with eval/run_eval.py if you change models.
+    semantic_floor: float = 0.45
+    semantic_ceiling: float = 0.85
+    # Resume chunking for the embedding model. Without it the model truncates
+    # each resume at ~512 tokens (about one page). Chunk scores are combined
+    # with max, mean, or max_mean (half best chunk, half average). 0 disables.
+    # Chosen on eval/: see eval/README.md.
+    chunk_words: int = 250
+    chunk_overlap_words: int = 50
+    chunk_aggregation: Literal["max", "mean", "max_mean"] = "max_mean"
 
     # Uploads
     max_file_size_mb: int = 10

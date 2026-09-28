@@ -1,0 +1,19 @@
+Data Engineer
+
+We're a retail analytics company processing billions of events per day. The data platform team builds the pipelines that power every dashboard and model in the company.
+
+Responsibilities
+- Build batch and streaming pipelines with Spark, Kafka, and Airflow
+- Model data in Snowflake using dbt, with tests and documentation
+- Write efficient, well-tested Python and SQL
+- Partner with analysts and data scientists on data quality and new datasets
+
+Requirements
+- 4+ years of data engineering experience
+- Strong SQL and Python
+- Hands-on experience with Spark and Airflow
+- Experience with a cloud data warehouse (Snowflake, BigQuery, or Redshift)
+
+Nice to have
+- Kafka or other streaming systems
+- dbt experience

@@ -18,9 +18,10 @@ class CandidateResult(BaseModel):
     filename: str
     percentage_score: float
     composite_score: float
-    similarity_score: float
-    skill_coverage_score: float
-    experience_score: float
+    similarity_score: float  # raw cosine similarity
+    semantic_score: float  # calibrated 0–1 semantic match (what the composite uses)
+    skill_coverage_score: float | None  # None: the job lists no recognisable skills
+    experience_score: float | None  # None: the job states no years of experience
     category: str
     category_emoji: str
     category_color: str

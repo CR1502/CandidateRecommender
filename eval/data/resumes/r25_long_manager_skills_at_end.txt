@@ -1,0 +1,37 @@
+Samira Nasser
+samira.nasser@example.com | Oakland, CA
+
+PROFESSIONAL SUMMARY
+I am an engineering leader who believes that great teams are built on trust, clear expectations, and a culture of continuous learning. Over the past two years I have focused on growing people, building healthy team rituals, and partnering with product and design leadership to set direction. I enjoy coaching engineers through career transitions, running thoughtful hiring processes, and creating an environment where people feel safe to raise problems early. I am looking to return to a senior individual contributor role where I can combine hands-on work with mentoring.
+
+EXPERIENCE
+Engineering Manager — Coinstack                                   2023 – Present
+- Manage a team of seven engineers across two time zones, including two senior engineers and one new graduate
+- Run weekly one-on-ones, quarterly career conversations, and the team's performance review process
+- Partnered with the head of product to define the team's roadmap and quarterly goals, and communicated trade-offs to executive stakeholders
+- Redesigned our interview loop to reduce bias: structured rubrics, calibrated interviewers, and a take-home exercise that reflects real work
+- Introduced a lightweight planning process with written proposals, which reduced mid-quarter scope changes
+- Organized the engineering department's internal conference and mentorship program, pairing 40 mentors and mentees
+- Improved team engagement survey results from the bottom quartile to the top quartile of the department over three survey cycles
+- Worked with finance and recruiting on headcount planning and the team's hiring plan for the following year
+- Supported two engineers through promotions and one through a performance improvement plan with a successful outcome
+- Facilitated retrospectives after major launches and made sure the resulting action items were owned and completed
+- Represented the team in quarterly business reviews and wrote the team's monthly update to leadership
+
+LEADERSHIP AND COMMUNITY
+- Volunteer mentor with a local nonprofit that teaches career skills to people returning to the workforce
+- Speaker at a regional leadership meetup on "Running effective one-on-ones"
+- Organizer of a monthly book club for new managers in the company
+
+Senior Software Engineer — Coinstack                              2019 – 2023
+- Built the core ledger and payments API in Python with FastAPI and PostgreSQL, processing 10M transactions per day
+- Moved the services to Kubernetes on AWS (EKS) with Docker and Terraform; designed zero-downtime deploys
+- Designed idempotent payment processing and double-entry accounting models in PostgreSQL
+- On-call lead; built the service's observability with Prometheus and Grafana
+
+Software Engineer — Datapoint                                     2016 – 2019
+- Django and Django REST Framework services for a B2B analytics product
+- Celery task queues and Redis caching; PostgreSQL query tuning
+
+TECHNICAL SKILLS
+Python, FastAPI, Django, PostgreSQL, Redis, Celery, Docker, Kubernetes, AWS, Terraform, Prometheus, REST APIs

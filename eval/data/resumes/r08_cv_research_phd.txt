@@ -1,0 +1,14 @@
+Dr. Tomás Herrera
+tomas.herrera@example.com | Pittsburgh, PA
+
+Research scientist in computer vision.
+
+Postdoctoral Researcher — Carnegie Robotics Lab                   2023 – Present
+- 3D scene understanding from multi-camera video; PyTorch
+- Mentored four PhD students; lab's lead on the self-supervised pretraining project
+
+Ph.D. Robotics, Carnegie Mellon University                        2018 – 2023
+- Thesis: self-supervised depth estimation for mobile robots
+- 6 first-author papers (CVPR, ICCV, ECCV)
+
+Skills: Python, PyTorch, OpenCV, CUDA, C++, deep learning, computer vision, ROS

@@ -41,6 +41,25 @@ jobs:
       - run: npm run lint
       - run: npm run build
 
+  eval:
+    name: Ranking quality (eval set)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # setup-uv publishes no floating major tag (v10), so pin the exact release.
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          enable-cache: true
+      - uses: actions/cache@v6
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ hashFiles('src/candidate_recommender/config.py') }}
+      - run: uv sync --locked --no-dev
+      # Fails if mean NDCG@5 drops below the threshold; current default scores 0.948.
+      - run: uv run --no-dev python eval/run_eval.py --min-ndcg 0.93
+        env:
+          TQDM_DISABLE: "1"
+
   docker:
     name: Docker image builds
     runs-on: ubuntu-latest

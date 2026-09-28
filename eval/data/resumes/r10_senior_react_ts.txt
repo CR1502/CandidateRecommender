@@ -1,0 +1,16 @@
+Hannah Cho
+hannah.cho@example.com | Portland, OR | hannahcho.dev
+
+Senior frontend engineer, 6 years of experience building React applications with a focus on design systems and accessibility.
+
+Senior Frontend Engineer — Canvasly (collaborative whiteboard)    2021 – Present
+- Tech lead for the editor UI: React, TypeScript, Next.js, Zustand
+- Built and maintain our design system (Tailwind CSS, Radix, Storybook) used by 30 engineers
+- Cut interaction latency by 45% with virtualization and memoization; improved Lighthouse scores
+- Led WCAG 2.1 AA accessibility audit and fixes
+
+Frontend Engineer — Loop Commerce                                 2019 – 2021
+- React and GraphQL (Apollo) storefront; server-side rendering with Next.js
+- Unit and end-to-end tests with Jest, Testing Library, and Playwright
+
+Skills: React, TypeScript, JavaScript, Next.js, HTML, CSS, Tailwind CSS, GraphQL, Jest, Playwright, accessibility

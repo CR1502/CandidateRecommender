@@ -1,0 +1,20 @@
+Senior Backend Engineer (Python)
+
+We're a fintech company building payment infrastructure used by thousands of merchants. You'll join a team of eight engineers who own our core APIs.
+
+What you'll do
+- Design, build, and operate high-throughput REST APIs in Python (FastAPI and Django)
+- Model data in PostgreSQL and tune queries for performance
+- Run services on Kubernetes in AWS, with Docker-based CI/CD pipelines
+- Mentor mid-level engineers and lead technical design reviews
+- Take part in the on-call rotation for the services you own
+
+Requirements
+- 5+ years of professional software engineering experience, mostly in Python
+- Deep experience with FastAPI or Django and PostgreSQL
+- Production experience with Docker, Kubernetes, and AWS
+- Solid understanding of API design, testing, and observability
+
+Nice to have
+- Experience with Redis, Celery, or Kafka
+- Background in payments or financial systems

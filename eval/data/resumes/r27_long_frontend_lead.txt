@@ -1,0 +1,36 @@
+Isabel Fontaine
+isabel.fontaine@example.com | Montreal, QC | isabelfontaine.dev
+
+PROFILE
+Frontend engineer with seven years of experience across agencies, a large media company, and an early-stage startup. I like working at the boundary between design and engineering: turning rough ideas into prototypes, then into production features that stay fast and accessible as the product grows. I have led small teams, run hiring loops, and spent a lot of time on the unglamorous parts of frontend work — build tooling, testing strategy, and making the codebase pleasant for the next person.
+
+EXPERIENCE
+Lead Frontend Engineer — Relay Health (patient scheduling startup)        2022 – Present
+- Joined as the second frontend engineer; now lead a team of four and own the web app end to end
+- Rebuilt the scheduling experience as a Next.js application with React Server Components, cutting time-to-interactive on mobile from 6.1s to 2.3s
+- Introduced TypeScript strict mode across 900 files and a typed API client generated from our OpenAPI spec
+- Created the component library and design tokens with Tailwind CSS and Radix primitives; partnered with our designer on the Figma source of truth
+- Led the accessibility program: screen-reader testing, keyboard navigation, and a WCAG 2.1 AA audit before our hospital launches
+- Set up Playwright end-to-end tests and visual regression checks that run on every pull request
+- Interview and onboard frontend hires; wrote our frontend engineering ladder
+
+Senior Frontend Developer — Northern Media Group                          2019 – 2022
+- Worked on the news homepage and article pages serving 20 million monthly readers
+- Migrated the article renderer from a jQuery codebase to React with server-side rendering
+- Built the live-blog feature with GraphQL subscriptions and optimistic UI updates
+- Owned web performance budgets and Core Web Vitals monitoring; improved LCP by 38%
+- Mentored two junior developers and ran the weekly frontend guild
+
+Frontend Developer — Atelier Numérique (agency)                           2017 – 2019
+- Built marketing sites and web apps for retail and cultural clients in React, Vue, and plain HTML/CSS
+- Animation-heavy landing pages; responsive layouts and cross-browser testing
+
+TALKS AND WRITING
+- "Accessible date pickers are hard" — React Montreal meetup, 2024
+- Blog posts on design tokens, CSS container queries, and incremental TypeScript adoption
+
+SKILLS
+React, TypeScript, JavaScript, Next.js, HTML, CSS, Tailwind CSS, GraphQL, Playwright, Jest, Storybook, accessibility, web performance, Figma
+
+EDUCATION
+B.Eng. Software Engineering, Polytechnique Montréal

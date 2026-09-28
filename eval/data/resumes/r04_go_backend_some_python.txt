@@ -1,0 +1,16 @@
+Daniel Okafor
+daniel.okafor@example.com | Remote (Atlanta, GA)
+
+Backend engineer, 6 years. Mostly Go these days, with Python for tooling and data work.
+
+Senior Software Engineer — Streamly (video infrastructure)        2020 – Present
+- Build high-throughput ingestion services in Go running on Kubernetes (GKE)
+- gRPC and REST API design; PostgreSQL and Redis
+- Wrote Python scripts and a small FastAPI admin service for the ops team
+- Led the migration to Prometheus-based alerting
+
+Software Engineer — Parcelwise                                    2018 – 2020
+- Python (Flask) and Go services for shipment tracking on AWS
+- Docker, Terraform, CI/CD with CircleCI
+
+Skills: Go, Python, gRPC, REST APIs, PostgreSQL, Redis, Kubernetes, Docker, AWS, GCP, Terraform, Prometheus
