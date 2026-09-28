@@ -13,9 +13,12 @@ Enrichment failure NEVER blocks the pipeline — worst case returns "".
 
 from __future__ import annotations
 
+import ipaddress
 import re
+import socket
 import concurrent.futures
 from typing import Optional
+from urllib.parse import urljoin, urlparse
 from loguru import logger
 
 try:
@@ -31,6 +34,9 @@ except ImportError:
     _HAS_BS4 = False
 
 _TIMEOUT = 8  # seconds per request
+_ENRICH_DEADLINE = _TIMEOUT * 2 + 3  # GitHub makes two sequential requests
+_MAX_REDIRECTS = 3
+_MAX_PAGE_BYTES = 1_000_000
 
 _GITHUB_HEADERS = {
     "Accept": "application/vnd.github.v3+json",
@@ -48,6 +54,36 @@ _SKIP_DOMAINS = frozenset({
 # ---------------------------------------------------------------------------
 # URL helpers
 # ---------------------------------------------------------------------------
+
+def _hostname(url: str) -> str:
+    return (urlparse(url).hostname or "").lower().rstrip(".")
+
+
+def _is_skipped_domain(host: str, extra: frozenset[str] = frozenset()) -> bool:
+    """True if host is, or is a subdomain of, a skipped domain."""
+    return any(host == d or host.endswith("." + d) for d in _SKIP_DOMAINS | extra)
+
+
+def is_public_url(url: str) -> bool:
+    """
+    SSRF guard: only allow http(s) URLs whose host resolves exclusively to
+    public addresses. Resume text is untrusted, so a link like
+    http://169.254.169.254/ or http://localhost:11434/ must never be fetched.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname:
+        return False
+    try:
+        infos = socket.getaddrinfo(parsed.hostname, parsed.port or None)
+    except (socket.gaierror, UnicodeError, ValueError):
+        return False
+    if not infos:
+        return False
+    for info in infos:
+        addr = ipaddress.ip_address(info[4][0].split("%", 1)[0])
+        if not addr.is_global or addr.is_multicast:
+            return False
+    return True
 
 def extract_raw_urls(text: str) -> list[str]:
     """Return all http(s) URLs found in the text, deduplicated, order preserved."""
@@ -171,21 +207,34 @@ def fetch_webpage_text(url: str) -> str:
     if not _HAS_REQUESTS or not _HAS_BS4:
         return ""
 
-    if any(d in url for d in _SKIP_DOMAINS):
-        return ""
-
     try:
-        r = _requests.get(
-            url, timeout=_TIMEOUT,
-            headers={"User-Agent": "Mozilla/5.0 (compatible; CandidateRecommender/1.0)"},
-            allow_redirects=True,
-        )
-        if r.status_code != 200:
-            return ""
-        if "text/html" not in r.headers.get("Content-Type", ""):
-            return ""
+        # Follow redirects by hand so every hop passes the SSRF guard.
+        for _ in range(_MAX_REDIRECTS + 1):
+            if _is_skipped_domain(_hostname(url)) or not is_public_url(url):
+                return ""
+            r = _requests.get(
+                url, timeout=_TIMEOUT,
+                headers={"User-Agent": "Mozilla/5.0 (compatible; CandidateRecommender/1.0)"},
+                allow_redirects=False,
+                stream=True,
+            )
+            if r.is_redirect:
+                url = urljoin(url, r.headers.get("Location", ""))
+                r.close()
+                continue
+            break
+        else:
+            return ""  # too many redirects
 
-        soup = BeautifulSoup(r.text, "html.parser")
+        with r:
+            if r.status_code != 200:
+                return ""
+            if "text/html" not in r.headers.get("Content-Type", ""):
+                return ""
+            body = r.raw.read(_MAX_PAGE_BYTES, decode_content=True)
+
+        html = body.decode(r.encoding or "utf-8", errors="replace")
+        soup = BeautifulSoup(html, "html.parser")
         for tag in soup(["script", "style", "nav", "footer", "header", "aside", "noscript", "form"]):
             tag.decompose()
 
@@ -227,11 +276,10 @@ def enrich_candidate(raw_text: str, contact: dict) -> str:
     # --- Other URLs (portfolio, personal site, project pages) ---
     seen_domains: set[str] = set()
     for url in extract_raw_urls(raw_text)[:6]:
-        if any(d in url for d in _SKIP_DOMAINS | {"github.com"}):
+        dom = _hostname(url)
+        if not dom or _is_skipped_domain(dom, frozenset({"github.com"})):
             continue
         # One fetch per domain
-        m = re.search(r'https?://([^/]+)', url)
-        dom = m.group(1) if m else url
         if dom in seen_domains:
             continue
         seen_domains.add(dom)
@@ -241,14 +289,20 @@ def enrich_candidate(raw_text: str, contact: dict) -> str:
         return ""
 
     results: list[str] = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+    try:
         futures = [pool.submit(fn) for fn in tasks]
-        for future in concurrent.futures.as_completed(futures, timeout=_TIMEOUT + 3):
+        for future in concurrent.futures.as_completed(futures, timeout=_ENRICH_DEADLINE):
             try:
                 text = future.result()
                 if text:
                     results.append(text)
             except Exception as e:
                 logger.debug(f"Enrichment task failed: {e}")
+    except concurrent.futures.TimeoutError:
+        logger.debug("Enrichment deadline reached; returning partial results")
+    finally:
+        # Don't block the pipeline on stragglers; their own request timeouts end them.
+        pool.shutdown(wait=False, cancel_futures=True)
 
     return "\n\n".join(results)

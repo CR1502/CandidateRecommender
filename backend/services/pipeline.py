@@ -102,26 +102,28 @@ def _run_ranking_sync(
         candidate["matching_skills"] = sorted(jd_skills & resume_skills)
 
     # --- 5. URL enrichment: follow GitHub + portfolio links ---
-    enriched_contexts: dict[str, str] = {}
+    # Stored on the candidate itself: names (and filenames) can collide.
     for candidate in ranked:
         raw = candidate.get("raw_text", candidate["text"])
         contact = candidate.get("contact", {})
-        ctx = enrich_candidate(raw, contact)
+        try:
+            ctx = enrich_candidate(raw, contact)
+        except Exception as e:
+            logger.warning(f"Enrichment failed for {candidate['filename']}: {e}")
+            ctx = ""
         if ctx:
-            enriched_contexts[candidate["candidate_name"]] = ctx
+            candidate["enriched_context"] = ctx
             logger.info(
                 f"Enriched {candidate['candidate_name']} "
                 f"({len(ctx)} chars from online profiles)"
             )
 
     # --- 6. Summaries (with enriched context) ---
-    ranked = summarizer.batch_generate_summaries(
-        ranked, clean_jd, enriched_contexts=enriched_contexts
-    )
+    ranked = summarizer.batch_generate_summaries(ranked, clean_jd)
 
     duration_ms = int((time.time() - start) * 1000)
     return RankResponse(
-        total_processed=len(ranked),
+        total_processed=len(resumes),
         total_duration_ms=duration_ms,
         job_description=job_description,
         candidates=[_to_candidate_result(c) for c in ranked],

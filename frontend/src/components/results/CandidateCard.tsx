@@ -151,14 +151,20 @@ export function CandidateCard({ candidate: c }: Props) {
   )
 }
 
+/** Contact values may or may not already carry a scheme (e.g. "github.com/x" vs "https://site.dev"). */
+function toHref(value: string | null): string | null {
+  if (!value) return null
+  return /^https?:\/\//i.test(value) ? value : `https://${value}`
+}
+
 function ContactGrid({ contact }: { contact: Candidate['contact'] }) {
   const items = [
     { icon: <Mail size={13} />, label: 'Email', value: contact.email, href: contact.email ? `mailto:${contact.email}` : null },
     { icon: <Phone size={13} />, label: 'Phone', value: contact.phone, href: contact.phone ? `tel:${contact.phone}` : null },
-    { icon: <ExternalLink size={13} />, label: 'LinkedIn', value: contact.linkedin, href: contact.linkedin ? `https://${contact.linkedin}` : null },
-    { icon: <Code2 size={13} />, label: 'GitHub', value: contact.github, href: contact.github ? `https://${contact.github}` : null },
+    { icon: <ExternalLink size={13} />, label: 'LinkedIn', value: contact.linkedin, href: toHref(contact.linkedin) },
+    { icon: <Code2 size={13} />, label: 'GitHub', value: contact.github, href: toHref(contact.github) },
     { icon: <MapPin size={13} />, label: 'Location', value: contact.location, href: null },
-    { icon: <Globe size={13} />, label: 'Website', value: contact.website, href: contact.website ? `https://${contact.website}` : null },
+    { icon: <Globe size={13} />, label: 'Website', value: contact.website, href: toHref(contact.website) },
   ].filter(i => i.value)
 
   if (items.length === 0) return null

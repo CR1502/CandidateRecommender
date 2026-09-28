@@ -12,6 +12,19 @@ from sklearn.metrics.pairwise import cosine_similarity
 from loguru import logger
 import torch
 
+from .text_cleaner import TextCleaner
+
+_text_cleaner = TextCleaner()
+
+# "5 years", "5+ yrs", "3-5 years", "3 to 5 years". Group 1 is the lower bound,
+# group 2 the optional upper bound of a range.
+_YEARS_PATTERN = re.compile(
+    r'(\d{1,2})\+?(?:\s*(?:-|–|—|to)\s*(\d{1,2})\+?)?\s*(?:years?|yrs?)\b',
+    re.IGNORECASE,
+)
+_MAX_PLAUSIBLE_YEARS = 50  # ignores "100 years of history" style numbers
+_UNKNOWN_EXPERIENCE_SCORE = 0.3
+
 
 class EmbeddingEngine:
     """
@@ -111,52 +124,53 @@ class EmbeddingEngine:
         Fraction of required job skills that appear in the resume.
         Returns 0.0–1.0.
         """
-        from .text_cleaner import TextCleaner
-
-        cleaner = TextCleaner()
-        required = set(cleaner.extract_required_skills(job_text))
+        required = set(_text_cleaner.extract_required_skills(job_text))
         if not required:
             return 0.5  # No extractable required skills → neutral
 
-        present = set(cleaner.extract_key_skills(resume_text))
+        present = set(_text_cleaner.extract_key_skills(resume_text))
         overlap = required & present
         return len(overlap) / len(required)
+
+    @staticmethod
+    def _stated_years(text: str, use_lower_bound: bool) -> int:
+        """
+        Largest plausible "N years" figure in the text. For ranges ("3-5
+        years") job descriptions use the lower bound as the requirement;
+        resumes use the upper bound.
+        """
+        values = []
+        for low, high in _YEARS_PATTERN.findall(text):
+            value = int(low) if use_lower_bound or not high else int(high)
+            if 0 < value <= _MAX_PLAUSIBLE_YEARS:
+                values.append(value)
+        return max(values, default=0)
 
     def _experience_signal(self, job_text: str, resume_text: str) -> float:
         """
         Heuristic: does the candidate's stated years of experience meet or
         exceed what the job asks for?  Returns 0.0–1.0.
         """
-        years_pattern = re.compile(r'(\d+)\+?\s*years?', re.IGNORECASE)
-
-        job_years = [int(m) for m in years_pattern.findall(job_text)]
-        resume_years = [int(m) for m in years_pattern.findall(resume_text)]
-
-        if not job_years:
+        required = self._stated_years(job_text, use_lower_bound=True)
+        if not required:
             return 0.5  # Job doesn't state a requirement → neutral
 
-        required = max(job_years)
-        candidate = max(resume_years) if resume_years else 0
+        candidate = self._stated_years(resume_text, use_lower_bound=False)
+        if not candidate:
+            return _UNKNOWN_EXPERIENCE_SCORE
 
-        if candidate >= required:
-            return 1.0
-        elif candidate == 0:
-            return 0.3
-        else:
-            # Proportional credit
-            return min(candidate / required, 1.0)
+        # Proportional credit, floored so that stating a few years never
+        # scores below stating nothing at all (keeps the score monotonic).
+        return max(_UNKNOWN_EXPERIENCE_SCORE, min(candidate / required, 1.0))
 
     def _composite_score(
         self,
         semantic: float,
-        job_text: str,
-        resume_text: str,
+        skill: float,
+        exp: float,
     ) -> float:
         """Combine semantic, skill coverage, and experience into one score."""
         w = self.scoring_weights
-        skill = self._skill_coverage_score(job_text, resume_text)
-        exp = self._experience_signal(job_text, resume_text)
-
         score = (
             w["semantic"] * semantic
             + w["skill_coverage"] * skill
@@ -231,11 +245,9 @@ class EmbeddingEngine:
 
         results = []
         for i, (resume, sem_score) in enumerate(zip(resumes, semantic_scores)):
-            composite = self._composite_score(
-                float(sem_score), job_description, resume["text"]
-            )
             skill_cov = self._skill_coverage_score(job_description, resume["text"])
             exp_sig = self._experience_signal(job_description, resume["text"])
+            composite = self._composite_score(float(sem_score), skill_cov, exp_sig)
             pct = composite * 100
 
             category, emoji, color = self._classify(pct)
@@ -285,11 +297,8 @@ class EmbeddingEngine:
 
     def find_matching_skills(self, job_text: str, resume_text: str) -> List[str]:
         """Return skills that appear in both the job description and the resume."""
-        from .text_cleaner import TextCleaner
-
-        cleaner = TextCleaner()
-        job_skills = set(cleaner.extract_key_skills(job_text))
-        resume_skills = set(cleaner.extract_key_skills(resume_text))
+        job_skills = set(_text_cleaner.extract_key_skills(job_text))
+        resume_skills = set(_text_cleaner.extract_key_skills(resume_text))
         return sorted(job_skills & resume_skills)
 
     # ------------------------------------------------------------------

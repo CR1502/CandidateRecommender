@@ -10,6 +10,10 @@ import docx
 from loguru import logger
 import chardet
 
+from .text_cleaner import TextCleaner
+
+_text_cleaner = TextCleaner()
+
 
 class FileProcessor:
     """Process and extract text from various file formats."""
@@ -46,6 +50,8 @@ class FileProcessor:
 
             if file_size > self.max_file_size_bytes:
                 raise ValueError(f"File size exceeds {self.max_file_size_bytes / (1024 * 1024)}MB limit")
+            if file_size == 0:
+                raise ValueError("File is empty")
 
             # Get file extension
             file_ext = filename.rsplit('.', 1)[-1].lower()
@@ -64,9 +70,7 @@ class FileProcessor:
                 raise ValueError(f"Unsupported file format: {file_ext}")
 
             # Extract candidate name
-            from .text_cleaner import TextCleaner
-            cleaner = TextCleaner()
-            candidate_name = cleaner.extract_candidate_name(text, filename)
+            candidate_name = _text_cleaner.extract_candidate_name(text, filename)
 
             logger.info(f"Successfully processed file: {filename}")
             return text, candidate_name

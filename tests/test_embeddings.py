@@ -6,7 +6,7 @@ import pytest
 import numpy as np
 from pathlib import Path
 import sys
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 # Add src to path
 sys.path.append(str(Path(__file__).parent.parent / "src"))
@@ -17,19 +17,17 @@ from core.embeddings import EmbeddingEngine
 class TestEmbeddingEngine:
     """Test suite for EmbeddingEngine class."""
 
-    @patch('core.embeddings.SentenceTransformer')
-    def setup_method(self, mock_transformer):
-        """Set up test fixtures with mocked model."""
-        # Mock the model
+    @pytest.fixture(autouse=True)
+    def _engine(self):
+        """Set up an engine backed by a mocked SentenceTransformer."""
         self.mock_model = Mock()
         self.mock_model.encode.return_value = np.random.rand(384)
         self.mock_model.max_seq_length = 512
         self.mock_model.get_sentence_embedding_dimension.return_value = 384
         self.mock_model.to.return_value = self.mock_model
 
-        mock_transformer.return_value = self.mock_model
-
-        self.engine = EmbeddingEngine("test-model")
+        with patch('core.embeddings.SentenceTransformer', return_value=self.mock_model):
+            self.engine = EmbeddingEngine("test-model")
 
     def test_init(self):
         """Test EmbeddingEngine initialization."""
@@ -75,34 +73,49 @@ class TestEmbeddingEngine:
 
     def test_generate_embeddings_batch_empty_list(self):
         """Test batch embedding with empty list."""
-        with pytest.raises(ValueError, match="No texts provided"):
+        with pytest.raises(ValueError, match="All provided texts are empty"):
             self.engine.generate_embeddings_batch([])
 
     def test_generate_embeddings_batch_all_empty_texts(self):
         """Test batch embedding with all empty texts."""
-        with pytest.raises(ValueError, match="All texts are empty"):
+        with pytest.raises(ValueError, match="All provided texts are empty"):
             self.engine.generate_embeddings_batch(["", " ", "\n"])
 
-    def test_compute_similarity(self):
-        """Test similarity computation."""
-        job_embedding = np.random.rand(384)
-        resume_embeddings = np.random.rand(5, 384)
+    def test_query_prefix_only_applied_to_queries(self):
+        """BGE query prefix goes on the job description, not on resumes."""
+        self.mock_model.encode.return_value = np.random.rand(384)
+        self.engine.generate_embedding("Python developer", is_query=True)
+        assert self.mock_model.encode.call_args[0][0].startswith(self.engine.query_prefix)
 
-        similarities = self.engine.compute_similarity(job_embedding, resume_embeddings)
+        self.engine.generate_embedding("Python developer", is_query=False)
+        assert self.mock_model.encode.call_args[0][0] == "Python developer"
 
-        assert isinstance(similarities, np.ndarray)
-        assert similarities.shape == (5,)
-        assert all(0 <= s <= 1 for s in similarities)
+    def test_rank_candidates_orders_by_similarity(self):
+        """With equal skill/experience signals, higher cosine ranks first."""
+        job_emb = np.array([1.0, 0.0])
+        resume_embs = np.array([[0.0, 1.0], [1.0, 0.0], [0.6, 0.8]])
+        self.mock_model.encode.side_effect = [job_emb, resume_embs]
+        resumes = [
+            {"text": "Resume A", "candidate_name": "A", "filename": "a.txt"},
+            {"text": "Resume B", "candidate_name": "B", "filename": "b.txt"},
+            {"text": "Resume C", "candidate_name": "C", "filename": "c.txt"},
+        ]
 
-    def test_compute_similarity_single_resume(self):
-        """Test similarity with single resume."""
-        job_embedding = np.random.rand(384)
-        resume_embedding = np.random.rand(384)
+        ranked = self.engine.rank_candidates("Some job description", resumes)
 
-        similarity = self.engine.compute_similarity(job_embedding, resume_embedding)
+        assert [r["candidate_name"] for r in ranked] == ["B", "C", "A"]
+        assert [r["rank"] for r in ranked] == [1, 2, 3]
 
-        assert isinstance(similarity, np.ndarray)
-        assert similarity.shape == (1,)
+    def test_rank_candidates_removes_duplicates(self):
+        self.mock_model.encode.side_effect = [np.array([1.0, 0.0]), np.array([[1.0, 0.0]])]
+        resumes = [
+            {"text": "Same resume", "candidate_name": "A", "filename": "a.txt"},
+            {"text": "Same resume", "candidate_name": "B", "filename": "b.txt"},
+        ]
+
+        ranked = self.engine.rank_candidates("Some job description", resumes)
+
+        assert [r["candidate_name"] for r in ranked] == ["A"]
 
     def test_rank_candidates(self):
         """Test candidate ranking."""
@@ -172,15 +185,13 @@ class TestEmbeddingEngineIntegration:
     )
     def test_real_model_loading(self):
         """Test with actual model loading."""
-        engine = EmbeddingEngine("sentence-transformers/all-MiniLM-L6-v2")
+        engine = EmbeddingEngine("BAAI/bge-small-en-v1.5")
 
         # Test embedding generation
         embedding = engine.generate_embedding("Test text")
         assert embedding.shape == (384,)
 
-        # Test similarity
-        job_emb = engine.generate_embedding("Python developer")
+        # Embeddings are L2-normalised, so the dot product is cosine similarity
+        job_emb = engine.generate_embedding("Python developer", is_query=True)
         resume_emb = engine.generate_embedding("Python programmer")
-
-        similarity = engine.compute_similarity(job_emb, resume_emb)
-        assert similarity[0] > 0.5  # Should be reasonably similar
+        assert float(np.dot(job_emb, resume_emb)) > 0.5
