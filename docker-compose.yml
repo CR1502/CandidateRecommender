@@ -1,21 +1,37 @@
-version: '3.8'
-
+# App + local LLM. First run downloads the Ollama model (~2GB for llama3.2),
+# so the app starts once that finishes. Open http://localhost:8000
 services:
-  candidate-recommender:
+  app:
     build: .
-    container_name: candidate-recommender
     ports:
-      - "8501:8501"
-    volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
-      - ./models:/app/models
+      - "8000:8000"
     environment:
-      - LOG_LEVEL=INFO
-      - STREAMLIT_SERVER_PORT=8501
-      - STREAMLIT_SERVER_ADDRESS=0.0.0.0
-      - STREAMLIT_SERVER_HEADLESS=true
-      - STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      ollama-pull:
+        condition: service_completed_successfully
     restart: unless-stopped
-    mem_limit: 4g
-    cpus: 2
+
+  ollama:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
+
+  # One-shot: waits for the Ollama server, pulls the model, then exits.
+  ollama-pull:
+    image: ollama/ollama:latest
+    environment:
+      OLLAMA_HOST: ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - until ollama list >/dev/null 2>&1; do sleep 1; done; ollama pull "$$OLLAMA_MODEL"
+    depends_on:
+      - ollama
+    restart: "no"
+
+volumes:
+  ollama:

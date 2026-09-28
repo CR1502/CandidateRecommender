@@ -2,16 +2,12 @@
 Unit tests for embeddings module.
 """
 
-import pytest
-import numpy as np
-from pathlib import Path
-import sys
 from unittest.mock import Mock, patch
 
-# Add src to path
-sys.path.append(str(Path(__file__).parent.parent / "src"))
+import numpy as np
+import pytest
 
-from core.embeddings import EmbeddingEngine
+from candidate_recommender.core.embeddings import EmbeddingEngine
 
 
 class TestEmbeddingEngine:
@@ -26,7 +22,7 @@ class TestEmbeddingEngine:
         self.mock_model.get_sentence_embedding_dimension.return_value = 384
         self.mock_model.to.return_value = self.mock_model
 
-        with patch('core.embeddings.SentenceTransformer', return_value=self.mock_model):
+        with patch('candidate_recommender.core.embeddings.SentenceTransformer', return_value=self.mock_model):
             self.engine = EmbeddingEngine("test-model")
 
     def test_init(self):

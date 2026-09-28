@@ -4,7 +4,7 @@ Unit tests for skill, contact, and name extraction in text_cleaner.
 
 import pytest
 
-from core.text_cleaner import TextCleaner
+from candidate_recommender.core.text_cleaner import TextCleaner
 
 
 @pytest.fixture

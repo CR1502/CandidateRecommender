@@ -4,37 +4,37 @@ Main processing pipeline: files → text → embeddings → rank → enrich → 
 
 from __future__ import annotations
 
+import asyncio
 import io
-import sys
 import time
-from pathlib import Path
-from typing import List
 
 from fastapi import UploadFile
 from loguru import logger
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
-
-from config import OLLAMA_BASE_URL, OLLAMA_MODEL
-from core.file_processor import FileProcessor
-from core.text_cleaner import TextCleaner
-from core.embeddings import EmbeddingEngine
-from core.summarizer import CandidateSummarizer
-from core.enricher import enrich_candidate
-from backend.schemas.responses import (
+from candidate_recommender.api.schemas.responses import (
     CandidateResult,
     ContactInfo,
     ExtractResponse,
     RankResponse,
 )
+from candidate_recommender.config import get_settings
+from candidate_recommender.core.embeddings import EmbeddingEngine
+from candidate_recommender.core.enricher import enrich_candidate
+from candidate_recommender.core.file_processor import FileProcessor
+from candidate_recommender.core.summarizer import CandidateSummarizer
+from candidate_recommender.core.text_cleaner import TextCleaner
 
-_file_processor = FileProcessor()
+_settings = get_settings()
+OLLAMA_BASE_URL = _settings.ollama_base_url
+OLLAMA_MODEL = _settings.ollama_model
+
+_file_processor = FileProcessor(max_file_size_mb=_settings.max_file_size_mb)
 _text_cleaner = TextCleaner()
 
 
 def _run_ranking_sync(
     job_description: str,
-    file_payloads: List[tuple[str, bytes]],
+    file_payloads: list[tuple[str, bytes]],
     embedding_engine: EmbeddingEngine,
     summarizer: CandidateSummarizer,
     top_k: int,
@@ -42,7 +42,7 @@ def _run_ranking_sync(
     start = time.time()
 
     # --- 1. Extract text ---
-    resumes: List[dict] = []
+    resumes: list[dict] = []
     for filename, content in file_payloads:
         file_obj = io.BytesIO(content)
         try:
@@ -132,13 +132,11 @@ def _run_ranking_sync(
 
 async def run_ranking_pipeline(
     job_description: str,
-    files: List[UploadFile],
+    files: list[UploadFile],
     embedding_engine: EmbeddingEngine,
     summarizer: CandidateSummarizer,
     top_k: int = 10,
 ) -> RankResponse:
-    import asyncio
-
     file_payloads = []
     for f in files:
         content = await f.read()
@@ -173,8 +171,6 @@ def _run_extract_sync(filename: str, content: bytes) -> ExtractResponse:
 
 
 async def run_extract_pipeline(file: UploadFile) -> ExtractResponse:
-    import asyncio
-
     content = await file.read()
     return await asyncio.to_thread(
         _run_extract_sync, file.filename or "upload", content

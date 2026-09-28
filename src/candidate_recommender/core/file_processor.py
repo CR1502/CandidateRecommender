@@ -2,13 +2,14 @@
 File processing utilities for extracting text from various file formats.
 """
 
-import io
-from pathlib import Path
-from typing import Optional, Dict, Any, List, Tuple
-import PyPDF2
+from typing import Any
+
+import chardet
 import docx
 from loguru import logger
-import chardet
+from pypdf import PdfReader
+
+from candidate_recommender.config import ALLOWED_EXTENSIONS
 
 from .text_cleaner import TextCleaner
 
@@ -26,9 +27,9 @@ class FileProcessor:
             max_file_size_mb: Maximum file size in MB
         """
         self.max_file_size_bytes = max_file_size_mb * 1024 * 1024
-        self.supported_formats = ['pdf', 'docx', 'txt']
+        self.supported_formats = list(ALLOWED_EXTENSIONS)
 
-    def process_file(self, file_obj: Any, filename: str) -> Tuple[str, str]:
+    def process_file(self, file_obj: Any, filename: str) -> tuple[str, str]:
         """
         Process an uploaded file and extract text.
 
@@ -90,7 +91,7 @@ class FileProcessor:
             Extracted text
         """
         try:
-            pdf_reader = PyPDF2.PdfReader(file_obj)
+            pdf_reader = PdfReader(file_obj)
             text_parts = []
 
             for page_num in range(len(pdf_reader.pages)):
@@ -103,7 +104,7 @@ class FileProcessor:
 
         except Exception as e:
             logger.error(f"Error extracting text from PDF: {e}")
-            raise ValueError(f"Failed to extract text from PDF: {str(e)}")
+            raise ValueError(f"Failed to extract text from PDF: {e}") from e
 
     def _extract_from_docx(self, file_obj: Any) -> str:
         """
@@ -134,7 +135,7 @@ class FileProcessor:
 
         except Exception as e:
             logger.error(f"Error extracting text from DOCX: {e}")
-            raise ValueError(f"Failed to extract text from DOCX: {str(e)}")
+            raise ValueError(f"Failed to extract text from DOCX: {e}") from e
 
     def _extract_from_txt(self, file_obj: Any) -> str:
         """
@@ -167,7 +168,7 @@ class FileProcessor:
             except Exception:
                 raise ValueError(f"Failed to extract text from TXT: {str(e)}") from e
 
-    def process_multiple_files(self, files: List[Any]) -> List[Dict[str, Any]]:
+    def process_multiple_files(self, files: list[Any]) -> list[dict[str, Any]]:
         """
         Process multiple files and extract text from each.
 
@@ -199,7 +200,7 @@ class FileProcessor:
 
         return results
 
-    def validate_file(self, file_obj: Any, filename: str) -> Tuple[bool, Optional[str]]:
+    def validate_file(self, file_obj: Any, filename: str) -> tuple[bool, str | None]:
         """
         Validate file before processing.
 

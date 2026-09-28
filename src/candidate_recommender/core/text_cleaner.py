@@ -2,17 +2,17 @@
 Text cleaning and preprocessing utilities.
 """
 
-import re
 import hashlib
-from typing import Optional, List, Dict
-from loguru import logger
+import re
 
+from loguru import logger
 
 # Explicit skill registry: (regex_pattern, display_name)
 # Patterns are matched case-insensitively against the original text. Words that
 # are also ordinary English ("go", "rust", "spring", "rest", ...) use (?-i:...)
 # to require their usual capitalisation and/or list context, so prose like
 # "we go the extra mile" or "Spring 2023" doesn't register as a skill.
+# fmt: off
 _LIST_BEFORE = r'(?:(?<=[,/;(:])\s*)'   # preceded by a list separator
 _LIST_AFTER = r'(?=\s*[,/;)])'          # followed by a list separator
 
@@ -125,6 +125,7 @@ SKILL_REGISTRY = [
     (r'\bcelery\b',          'Celery'),
     (r'\bpydantic\b',        'Pydantic'),
 ]
+# fmt: on
 
 _COMPILED_SKILLS = [
     (re.compile(pattern, re.IGNORECASE), name) for pattern, name in SKILL_REGISTRY
@@ -176,7 +177,7 @@ class TextCleaner:
             logger.error(f"Error cleaning text: {e}")
             return text
 
-    def extract_candidate_name(self, text: str, filename: Optional[str] = None) -> str:
+    def extract_candidate_name(self, text: str, filename: str | None = None) -> str:
         """
         Extract candidate name from resume text or filename.
 
@@ -201,7 +202,7 @@ class TextCleaner:
         text_hash = hashlib.md5(text.encode()).hexdigest()[:8]
         return f"Candidate_{text_hash}"
 
-    def extract_key_skills(self, text: str, limit: Optional[int] = None) -> List[str]:
+    def extract_key_skills(self, text: str, limit: int | None = None) -> list[str]:
         """
         Extract skills from text using the SKILL_REGISTRY.
 
@@ -222,7 +223,7 @@ class TextCleaner:
         text: str,
         base_url: str = "http://localhost:11434",
         model: str = "llama3.2",
-    ) -> List[str]:
+    ) -> list[str]:
         """
         Use Ollama to extract skills from text.
 
@@ -276,7 +277,7 @@ class TextCleaner:
         # Fallback
         return self.extract_key_skills(text)
 
-    def extract_required_skills(self, job_text: str) -> List[str]:
+    def extract_required_skills(self, job_text: str) -> list[str]:
         """
         Extract skills from a job description that appear to be requirements.
 
@@ -295,14 +296,14 @@ class TextCleaner:
             logger.warning(f"Short text ({len(text)} chars) may reduce embedding quality")
         return text
 
-    def extract_contact_details(self, text: str) -> Dict[str, Optional[str]]:
+    def extract_contact_details(self, text: str) -> dict[str, str | None]:
         """
         Extract contact information from raw resume text.
 
         Always call this on the *original* (uncleaned) text so that
         characters like @ and / are still present.
         """
-        contact: Dict[str, Optional[str]] = {
+        contact: dict[str, str | None] = {
             'email': None,
             'phone': None,
             'linkedin': None,

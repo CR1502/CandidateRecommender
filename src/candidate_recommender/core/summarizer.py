@@ -14,11 +14,11 @@ Supported models (set OLLAMA_MODEL env var):
     gemma2       — 9B, strong analytical writing
 """
 
-import hashlib
 import re
-from typing import Dict, Any, List, Optional
+from typing import Any
 
 from loguru import logger
+
 from .text_cleaner import TextCleaner
 
 _text_cleaner = TextCleaner()
@@ -101,7 +101,7 @@ class CandidateSummarizer:
         job_description: str,
         resume_text: str,
         composite_score: float,
-        matching_skills: Optional[List[str]] = None,
+        matching_skills: list[str] | None = None,
         skill_coverage: float = 0.0,
         experience_score: float = 0.0,
         enriched_context: str = "",
@@ -139,10 +139,10 @@ class CandidateSummarizer:
 
     def batch_generate_summaries(
         self,
-        candidates: List[Dict[str, Any]],
+        candidates: list[dict[str, Any]],
         job_description: str,
-        enriched_contexts: Optional[Dict[str, str]] = None,
-    ) -> List[Dict[str, Any]]:
+        enriched_contexts: dict[str, str] | None = None,
+    ) -> list[dict[str, Any]]:
         """
         Add a 'fit_summary' field to each candidate dict.
 
@@ -188,7 +188,7 @@ class CandidateSummarizer:
         job_description: str,
         resume_text: str,
         composite_score: float,
-        matching_skills: Optional[List[str]],
+        matching_skills: list[str] | None,
         skill_coverage: float,
         experience_score: float,
         enriched_context: str = "",
@@ -239,7 +239,7 @@ Do not use filler phrases like "strong candidate" or "great fit" unless you back
         job_description: str,
         resume_text: str,
         composite_score: float,
-        matching_skills: Optional[List[str]],
+        matching_skills: list[str] | None,
         skill_coverage: float,
         experience_score: float,
         enriched_context: str = "",

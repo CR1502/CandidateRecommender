@@ -6,14 +6,14 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from core.embeddings import EmbeddingEngine
+from candidate_recommender.core.embeddings import EmbeddingEngine
 
 
 @pytest.fixture(scope="module")
 def engine():
     model = Mock()
     model.to.return_value = model
-    with patch("core.embeddings.SentenceTransformer", return_value=model):
+    with patch("candidate_recommender.core.embeddings.SentenceTransformer", return_value=model):
         yield EmbeddingEngine("test-model")
 
 

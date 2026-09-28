@@ -13,12 +13,12 @@ Enrichment failure NEVER blocks the pipeline — worst case returns "".
 
 from __future__ import annotations
 
+import concurrent.futures
 import ipaddress
 import re
 import socket
-import concurrent.futures
-from typing import Optional
 from urllib.parse import urljoin, urlparse
+
 from loguru import logger
 
 try:
@@ -98,7 +98,7 @@ def extract_raw_urls(text: str) -> list[str]:
     return result
 
 
-def _github_username(contact_github: str, raw_text: str) -> Optional[str]:
+def _github_username(contact_github: str, raw_text: str) -> str | None:
     """
     Resolve a GitHub username from the contact dict value or raw URL in text.
     Returns None if nothing found or the URL looks like an org/repo path.
@@ -183,7 +183,7 @@ def fetch_github_info(username: str) -> str:
 
         if lang_counts:
             sorted_langs = sorted(lang_counts.items(), key=lambda x: -x[1])
-            lines.append("Primary languages: " + ", ".join(l for l, _ in sorted_langs))
+            lines.append("Primary languages: " + ", ".join(lang for lang, _ in sorted_langs))
         if repo_lines:
             lines.append("Recent (non-fork) repositories:")
             lines.extend(repo_lines)

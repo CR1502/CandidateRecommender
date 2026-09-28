@@ -2,15 +2,11 @@
 Unit tests for file processor module.
 """
 
-import pytest
 import io
-from pathlib import Path
-import sys
 
-# Add src to path
-sys.path.append(str(Path(__file__).parent.parent / "src"))
+import pytest
 
-from core.file_processor import FileProcessor
+from candidate_recommender.core.file_processor import FileProcessor
 
 
 class TestFileProcessor:

@@ -4,13 +4,15 @@ Embedding generation, composite scoring, and candidate ranking.
 
 import hashlib
 import re
-from typing import List, Dict, Any, Optional
+from typing import Any
 
 import numpy as np
+import torch
+from loguru import logger
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-from loguru import logger
-import torch
+
+from candidate_recommender.config import CANDIDATE_CATEGORIES
 
 from .text_cleaner import TextCleaner
 
@@ -43,7 +45,7 @@ class EmbeddingEngine:
         self,
         model_name: str = "BAAI/bge-small-en-v1.5",
         query_prefix: str = "Represent this sentence for searching relevant passages: ",
-        scoring_weights: Optional[Dict[str, float]] = None,
+        scoring_weights: dict[str, float] | None = None,
     ):
         self.model_name = model_name
         self.query_prefix = query_prefix
@@ -53,7 +55,7 @@ class EmbeddingEngine:
             "experience": 0.10,
         }
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        self.model: Optional[SentenceTransformer] = None
+        self.model: SentenceTransformer | None = None
         self._load_model()
 
     # ------------------------------------------------------------------
@@ -94,7 +96,7 @@ class EmbeddingEngine:
         )
 
     def generate_embeddings_batch(
-        self, texts: List[str], is_query: bool = False
+        self, texts: list[str], is_query: bool = False
     ) -> np.ndarray:
         """Generate embeddings for a list of texts in one batched call."""
         valid = [t for t in texts if t and t.strip()]
@@ -187,8 +189,8 @@ class EmbeddingEngine:
         return hashlib.md5(text.strip().encode()).hexdigest()
 
     def _deduplicate(
-        self, resumes: List[Dict[str, Any]]
-    ) -> List[Dict[str, Any]]:
+        self, resumes: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         """Remove duplicate resumes (same content hash). Keeps first occurrence."""
         seen: set = set()
         unique = []
@@ -210,9 +212,9 @@ class EmbeddingEngine:
     def rank_candidates(
         self,
         job_description: str,
-        resumes: List[Dict[str, Any]],
+        resumes: list[dict[str, Any]],
         top_k: int = 10,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Score and rank candidates against a job description.
 
@@ -244,7 +246,7 @@ class EmbeddingEngine:
         semantic_scores = cosine_similarity(job_emb, resume_embs).flatten()
 
         results = []
-        for i, (resume, sem_score) in enumerate(zip(resumes, semantic_scores)):
+        for resume, sem_score in zip(resumes, semantic_scores, strict=True):
             skill_cov = self._skill_coverage_score(job_description, resume["text"])
             exp_sig = self._experience_signal(job_description, resume["text"])
             composite = self._composite_score(float(sem_score), skill_cov, exp_sig)
@@ -280,22 +282,17 @@ class EmbeddingEngine:
     @staticmethod
     def _classify(pct: float):
         """Return (category_label, emoji, hex_color) for a percentage score."""
-        if pct >= 85:
-            return "Perfect Match",    "🌟", "#00D26A"
-        elif pct >= 70:
-            return "Ideal Candidate",  "⭐", "#4CAF50"
-        elif pct >= 50:
-            return "Good Candidate",   "✅", "#FFA726"
-        elif pct >= 25:
-            return "Okay Candidate",   "👍", "#FF9800"
-        else:
-            return "Not Recommended",  "❌", "#F44336"
+        for category in CANDIDATE_CATEGORIES:
+            if pct >= category.min_pct:
+                return category.label, category.emoji, category.color
+        lowest = CANDIDATE_CATEGORIES[-1]
+        return lowest.label, lowest.emoji, lowest.color
 
     # ------------------------------------------------------------------
     # Skill matching (public helper for UI layer)
     # ------------------------------------------------------------------
 
-    def find_matching_skills(self, job_text: str, resume_text: str) -> List[str]:
+    def find_matching_skills(self, job_text: str, resume_text: str) -> list[str]:
         """Return skills that appear in both the job description and the resume."""
         job_skills = set(_text_cleaner.extract_key_skills(job_text))
         resume_skills = set(_text_cleaner.extract_key_skills(resume_text))
@@ -305,7 +302,7 @@ class EmbeddingEngine:
     # Introspection
     # ------------------------------------------------------------------
 
-    def get_model_info(self) -> Dict[str, Any]:
+    def get_model_info(self) -> dict[str, Any]:
         if not self.model:
             return {"error": "Model not loaded"}
         return {

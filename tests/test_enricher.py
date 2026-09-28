@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from core import enricher
+from candidate_recommender.core import enricher
 
 
 def _resolve_to(ip):
@@ -24,11 +24,11 @@ class TestIsPublicUrl:
         "169.254.169.254", "0.0.0.0", "::1", "fd00::1",
     ])
     def test_rejects_non_public_addresses(self, ip):
-        with patch("core.enricher.socket.getaddrinfo", _resolve_to(ip)):
+        with patch("candidate_recommender.core.enricher.socket.getaddrinfo", _resolve_to(ip)):
             assert not enricher.is_public_url("http://example.com/")
 
     def test_accepts_public_address(self):
-        with patch("core.enricher.socket.getaddrinfo", _resolve_to("93.184.216.34")):
+        with patch("candidate_recommender.core.enricher.socket.getaddrinfo", _resolve_to("93.184.216.34")):
             assert enricher.is_public_url("https://example.com/portfolio")
 
     @pytest.mark.parametrize("url", ["file:///etc/passwd", "ftp://example.com", "http://"])
@@ -36,7 +36,7 @@ class TestIsPublicUrl:
         assert not enricher.is_public_url(url)
 
     def test_rejects_unresolvable_host(self):
-        with patch("core.enricher.socket.getaddrinfo", side_effect=socket.gaierror):
+        with patch("candidate_recommender.core.enricher.socket.getaddrinfo", side_effect=socket.gaierror):
             assert not enricher.is_public_url("http://nope.invalid/")
 
 
@@ -48,13 +48,13 @@ class TestFetchWebpage:
             ip = "10.0.0.1" if host == "internal.test" else "93.184.216.34"
             return _resolve_to(ip)(host, port)
 
-        with patch("core.enricher.socket.getaddrinfo", resolve), \
-             patch("core.enricher._requests.get", return_value=redirect) as get:
+        with patch("candidate_recommender.core.enricher.socket.getaddrinfo", resolve), \
+             patch("candidate_recommender.core.enricher._requests.get", return_value=redirect) as get:
             assert enricher.fetch_webpage_text("http://example.com/") == ""
         assert get.call_count == 1  # never requested the internal host
 
     def test_skips_blocked_domains_by_hostname(self):
-        with patch("core.enricher._requests.get") as get:
+        with patch("candidate_recommender.core.enricher._requests.get") as get:
             assert enricher.fetch_webpage_text("https://www.linkedin.com/in/jane") == ""
         get.assert_not_called()
 

@@ -28,7 +28,8 @@ export function RadarChart3D({ semantic, skillCoverage, experience, color }: Pro
   const values = [semantic, skillCoverage, experience]
 
   const filledGeo = useMemo(() => {
-    const pts = AXES.map((ax, i) => toVec(ax.angle, values[i] * maxR))
+    const vals = [semantic, skillCoverage, experience]
+    const pts = AXES.map((ax, i) => toVec(ax.angle, vals[i] * maxR))
     const verts: number[] = []
     for (let i = 0; i < 3; i++) {
       const next = (i + 1) % 3
@@ -41,7 +42,8 @@ export function RadarChart3D({ semantic, skillCoverage, experience, color }: Pro
 
   // Points for Drei <Line> — outline closes back to first point
   const outlinePoints = useMemo<[number, number, number][]>(() => {
-    const pts = AXES.map((ax, i) => toTuple(ax.angle, values[i] * maxR))
+    const vals = [semantic, skillCoverage, experience]
+    const pts = AXES.map((ax, i) => toTuple(ax.angle, vals[i] * maxR))
     return [...pts, pts[0]] as [number, number, number][]
   }, [semantic, skillCoverage, experience])
 
