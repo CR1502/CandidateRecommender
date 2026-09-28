@@ -9,26 +9,35 @@ from loguru import logger
 
 
 # Explicit skill registry: (regex_pattern, display_name)
-# Order matters — more specific patterns first to avoid partial matches
+# Patterns are matched case-insensitively against the original text. Words that
+# are also ordinary English ("go", "rust", "spring", "rest", ...) use (?-i:...)
+# to require their usual capitalisation and/or list context, so prose like
+# "we go the extra mile" or "Spring 2023" doesn't register as a skill.
+_LIST_BEFORE = r'(?:(?<=[,/;(:])\s*)'   # preceded by a list separator
+_LIST_AFTER = r'(?=\s*[,/;)])'          # followed by a list separator
+
 SKILL_REGISTRY = [
     # Languages
-    (r'\bc\+\+\b',          'C++'),
-    (r'\bc#\b',              'C#'),
-    (r'\brust\b',            'Rust'),
-    (r'\bgolang\b|\bgo\b',   'Go'),
-    (r'\bpython\b',          'Python'),
-    (r'\bjava\b',            'Java'),
-    (r'\bkotlin\b',          'Kotlin'),
-    (r'\bscala\b',           'Scala'),
-    (r'\bswift\b',           'Swift'),
-    (r'\bruby\b',            'Ruby'),
-    (r'\bphp\b',             'PHP'),
-    (r'\br\b',               'R'),
+    (r'(?<![\w+])c\+\+(?![\w+])',   'C++'),
+    (r'(?<!\w)c#(?!\w)',             'C#'),
+    (r'(?-i:\bRust\b)',              'Rust'),
+    (r'\bgolang\b|\bgo\s+lang\b'
+     rf'|{_LIST_BEFORE}(?-i:Go)\b|(?-i:\bGo\b){_LIST_AFTER}'
+     r'|(?-i:\bGo\b)(?=\s+(?:programming|developer|engineer|microservices)\b)', 'Go'),
+    (r'\bpython\b',            'Python'),
+    (r'\bjava\b',              'Java'),
+    (r'\bkotlin\b',            'Kotlin'),
+    (r'\bscala\b',             'Scala'),
+    (r'(?-i:\bSwift\b)|\bswiftui\b', 'Swift'),
+    (r'\bruby\b',              'Ruby'),
+    (r'\bphp\b',               'PHP'),
+    (rf'{_LIST_BEFORE}(?-i:R)\b(?![&\w\'])|(?-i:\bR\b)(?![&]){_LIST_AFTER}'
+     r'|(?-i:\bR\b)(?=\s+(?:programming|language)\b)|\brstudio\b', 'R'),
     (r'\bjavascript\b|\bjs\b', 'JavaScript'),
-    (r'\btypescript\b|\bts\b', 'TypeScript'),
-    (r'\bhtml\b',            'HTML'),
-    (r'\bcss\b',             'CSS'),
-    (r'\bbash\b|\bshell\b',  'Shell/Bash'),
+    (r'\btypescript\b',        'TypeScript'),
+    (r'\bhtml5?\b',            'HTML'),
+    (r'\bcss3?\b',             'CSS'),
+    (r'\bbash\b|\bzsh\b|\bshell\s+script(?:s|ing)?\b', 'Shell/Bash'),
 
     # Frontend
     (r'\breact\.?js\b|\breact\b', 'React'),
@@ -43,9 +52,9 @@ SKILL_REGISTRY = [
     (r'\bdjango\b',          'Django'),
     (r'\bflask\b',           'Flask'),
     (r'\bnode\.?js\b',       'Node.js'),
-    (r'\bexpress\.?js\b|\bexpress\b', 'Express'),
-    (r'\bspring\b',          'Spring'),
-    (r'\brails\b',           'Rails'),
+    (rf'\bexpress\.?js\b|{_LIST_BEFORE}(?-i:Express)\b|(?-i:\bExpress\b){_LIST_AFTER}', 'Express'),
+    (r'\bspring\s*(?:boot|framework|mvc|cloud|security|data)\b', 'Spring'),
+    (r'\bruby\s+on\s+rails\b|(?-i:\bRails\b)', 'Rails'),
     (r'\blaravel\b',         'Laravel'),
 
     # Databases
@@ -71,26 +80,26 @@ SKILL_REGISTRY = [
     (r'\bjenkins\b',         'Jenkins'),
     (r'\bgithub actions\b',  'GitHub Actions'),
     (r'\bci/cd\b|\bcontinuous integration\b', 'CI/CD'),
-    (r'\bhelm\b',            'Helm'),
+    (r'(?-i:\bHelm\b)|\bhelm\s+charts?\b', 'Helm'),
 
     # ML / AI
-    (r'\btensorflow\b|\btf\b', 'TensorFlow'),
+    (r'\btensorflow\b',      'TensorFlow'),
     (r'\bpytorch\b',         'PyTorch'),
     (r'\bscikit.learn\b|\bsklearn\b', 'scikit-learn'),
     (r'\bkeras\b',           'Keras'),
     (r'\bhugging face\b|\bhuggingface\b|\btransformers\b', 'HuggingFace'),
     (r'\blangchain\b',       'LangChain'),
-    (r'\bllm\b|large language model', 'LLMs'),
-    (r'\bmachine learning\b|\bml\b', 'Machine Learning'),
+    (r'\bllms?\b|large language models?', 'LLMs'),
+    (r'\bmachine learning\b|(?-i:\bML\b)', 'Machine Learning'),
     (r'\bdeep learning\b',   'Deep Learning'),
     (r'\bnlp\b|natural language processing', 'NLP'),
-    (r'\bcomputer vision\b|\bcv\b', 'Computer Vision'),
+    (r'\bcomputer vision\b|\bopencv\b', 'Computer Vision'),
     (r'\bmlops\b',           'MLOps'),
     (r'\bdata science\b',    'Data Science'),
     (r'\breinforcement learning\b', 'Reinforcement Learning'),
 
     # Data engineering
-    (r'\bapache spark\b|\bspark\b', 'Spark'),
+    (r'\bapache spark\b|\bpyspark\b|(?-i:\bSpark\b)', 'Spark'),
     (r'\bairflow\b',         'Airflow'),
     (r'\bkafka\b',           'Kafka'),
     (r'\bflink\b',           'Flink'),
@@ -100,7 +109,7 @@ SKILL_REGISTRY = [
     (r'\bdatabricks\b',      'Databricks'),
 
     # General engineering
-    (r'\brest\b|restful|rest api', 'REST APIs'),
+    (r'\brestful\b|\brest\s*apis?\b|(?-i:\bREST\b)', 'REST APIs'),
     (r'\bgraphql\b',         'GraphQL'),
     (r'\bgrpc\b',            'gRPC'),
     (r'\bmicroservices\b',   'Microservices'),
@@ -115,6 +124,10 @@ SKILL_REGISTRY = [
     (r'\bsqlalchemy\b',      'SQLAlchemy'),
     (r'\bcelery\b',          'Celery'),
     (r'\bpydantic\b',        'Pydantic'),
+]
+
+_COMPILED_SKILLS = [
+    (re.compile(pattern, re.IGNORECASE), name) for pattern, name in SKILL_REGISTRY
 ]
 
 
@@ -188,20 +201,21 @@ class TextCleaner:
         text_hash = hashlib.md5(text.encode()).hexdigest()[:8]
         return f"Candidate_{text_hash}"
 
-    def extract_key_skills(self, text: str) -> List[str]:
+    def extract_key_skills(self, text: str, limit: Optional[int] = None) -> List[str]:
         """
         Extract skills from text using the SKILL_REGISTRY.
 
-        Returns a list of display-name skills found in the text (up to 15).
+        Returns every display-name skill found, in registry order. Pass
+        `limit` only for display — scoring must see the full list, otherwise
+        skill-rich resumes lose matches that sit later in the registry.
         """
-        text_lower = text.lower()
         found = []
 
-        for pattern, display_name in SKILL_REGISTRY:
-            if re.search(pattern, text_lower) and display_name not in found:
+        for pattern, display_name in _COMPILED_SKILLS:
+            if display_name not in found and pattern.search(text):
                 found.append(display_name)
 
-        return found[:15]
+        return found[:limit] if limit else found
 
     def extract_skills_with_llm(
         self,

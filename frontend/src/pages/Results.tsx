@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Download, Clock, Users } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
@@ -14,6 +14,11 @@ const CATEGORY_FILTERS = [
   'Not Recommended',
 ]
 
+function csvCell(value: string | number): string {
+  const s = String(value)
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+}
+
 function buildCSV(candidates: ReturnType<typeof useAppStore.getState>['candidates']): string {
   const header = ['Rank', 'Name', 'Score (%)', 'Category', 'Matching Skills', 'Email', 'Phone', 'LinkedIn', 'Summary']
   const rows = candidates.map(c => [
@@ -25,9 +30,9 @@ function buildCSV(candidates: ReturnType<typeof useAppStore.getState>['candidate
     c.contact.email ?? '',
     c.contact.phone ?? '',
     c.contact.linkedin ?? '',
-    `"${(c.fit_summary ?? '').replace(/"/g, '""')}"`,
+    c.fit_summary ?? '',
   ])
-  return [header, ...rows].map(r => r.join(',')).join('\n')
+  return [header, ...rows].map(r => r.map(csvCell).join(',')).join('\n')
 }
 
 export default function Results() {
@@ -66,8 +71,7 @@ export default function Results() {
   }
 
   if (candidates.length === 0) {
-    navigate('/')
-    return null
+    return <Navigate to="/" replace />
   }
 
   return (

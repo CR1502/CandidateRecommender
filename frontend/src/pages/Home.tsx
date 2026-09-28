@@ -3,7 +3,7 @@ import { Canvas } from '@react-three/fiber'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, AlertCircle, Search } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
-import { rankCandidates } from '../api/client'
+import { getErrorMessage, rankCandidates } from '../api/client'
 import { DropZone } from '../components/upload/DropZone'
 import { FileList } from '../components/upload/FileList'
 import { ParticleField } from '../components/three/ParticleField'
@@ -36,8 +36,7 @@ export default function Home() {
       setResults(result)
       navigate('/results')
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Something went wrong. Is the backend running?'
-      setError(msg)
+      setError(getErrorMessage(err))
       setStatus('error')
     }
   }

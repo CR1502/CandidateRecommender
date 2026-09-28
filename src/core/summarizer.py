@@ -151,13 +151,15 @@ class CandidateSummarizer:
             job_description:    The job description text.
             enriched_contexts:  Optional mapping of candidate_name → enriched
                                 context string (GitHub, portfolio, etc.).
+                                A candidate's own 'enriched_context' field
+                                takes precedence, since names can collide.
         """
         enriched_contexts = enriched_contexts or {}
         logger.info(f"Generating summaries for {len(candidates)} candidates")
 
         for candidate in candidates:
             name = candidate.get("candidate_name", "")
-            enriched = enriched_contexts.get(name, "")
+            enriched = candidate.get("enriched_context") or enriched_contexts.get(name, "")
             try:
                 candidate["fit_summary"] = self.generate_fit_summary(
                     job_description=job_description,
