@@ -1,53 +1,60 @@
+import { lazy, Suspense, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Canvas } from '@react-three/fiber'
+import { useMutation } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Loader2, AlertCircle, Search } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { getErrorMessage, rankCandidates } from '../api/client'
 import { DropZone } from '../components/upload/DropZone'
 import { FileList } from '../components/upload/FileList'
-import { ParticleField } from '../components/three/ParticleField'
+import { RankProgressBar } from '../components/upload/RankProgressBar'
+import type { RankProgress } from '../types'
+
+const Background = lazy(() => import('../components/three/Background'))
 
 export default function Home() {
   const navigate = useNavigate()
-  const {
-    jobDescription, setJobDescription,
-    files, status, error,
-    setStatus, setError, setResults,
-  } = useAppStore()
+  const { jobDescription, setJobDescription, files, setResults } = useAppStore()
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const [progress, setProgress] = useState<RankProgress | null>(null)
+  const abort = useRef<AbortController | null>(null)
 
-  const isLoading = status === 'loading'
+  const rank = useMutation({
+    mutationFn: () => {
+      abort.current = new AbortController()
+      return rankCandidates(jobDescription, files, setProgress, 10, abort.current.signal)
+    },
+    onMutate: () => setProgress(null),
+    onSuccess: (result) => {
+      setResults(result)
+      navigate('/results')
+    },
+  })
 
-  const handleSubmit = async () => {
-    if (!jobDescription.trim() || jobDescription.trim().length < 50) {
-      setError('Job description must be at least 50 characters.')
+  const isLoading = rank.isPending
+  const cancelled = rank.error instanceof Error && rank.error.name === 'AbortError'
+  const error = validationError ?? (rank.isError && !cancelled ? getErrorMessage(rank.error) : null)
+
+  const handleSubmit = () => {
+    if (jobDescription.trim().length < 50) {
+      setValidationError('Job description must be at least 50 characters.')
       return
     }
     if (files.length === 0) {
-      setError('Please upload at least one resume file.')
+      setValidationError('Please upload at least one resume file.')
       return
     }
-
-    setError(null)
-    setStatus('loading')
-
-    try {
-      const result = await rankCandidates(jobDescription, files)
-      setResults(result)
-      navigate('/results')
-    } catch (err: unknown) {
-      setError(getErrorMessage(err))
-      setStatus('error')
-    }
+    setValidationError(null)
+    rank.mutate()
   }
 
   return (
     <div className="relative min-h-screen">
       {/* Background 3D canvas */}
       <div className="fixed inset-0" style={{ pointerEvents: 'none', zIndex: 0 }}>
-        <Canvas camera={{ position: [0, 0, 10], fov: 60 }}>
-          <ParticleField fileCount={files.length} />
-        </Canvas>
+        <Suspense fallback={null}>
+          <Background fileCount={files.length} />
+        </Suspense>
       </div>
 
       {/* Content */}
@@ -130,6 +137,8 @@ export default function Home() {
                   )}
                 </AnimatePresence>
 
+                {isLoading && <RankProgressBar progress={progress} />}
+
                 <motion.button
                   onClick={handleSubmit}
                   disabled={isLoading}
@@ -147,6 +156,15 @@ export default function Home() {
                     'Find Best Candidates'
                   )}
                 </motion.button>
+
+                {isLoading && (
+                  <button
+                    onClick={() => abort.current?.abort()}
+                    className="w-full text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                )}
               </div>
             </div>
           </motion.div>

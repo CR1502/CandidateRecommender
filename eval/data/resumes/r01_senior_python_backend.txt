@@ -1,5 +1,5 @@
 Priya Raman
-priya.raman@example.com | (555) 201-3344 | github.com/priyaraman | Seattle, WA
+priya.raman@example.com | (555) 201-3344 | example.com/priya-raman | Seattle, WA
 
 SUMMARY
 Backend engineer with 8 years of experience building payment and billing APIs in Python. I care about reliable systems, clean API design, and helping teammates grow.

@@ -1,11 +1,10 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Canvas } from '@react-three/fiber'
-import { OrbitControls } from '@react-three/drei'
-import { ChevronDown, ChevronUp, Mail, Phone, ExternalLink, Code2, MapPin, Globe } from 'lucide-react'
+import { ChevronDown, ChevronUp, Mail, Phone, ExternalLink, Code2, MapPin, Globe, Check, CircleHelp } from 'lucide-react'
 import type { Candidate } from '../../types'
-import { ScoreOrb } from '../three/ScoreOrb'
-import { RadarChart3D } from '../three/RadarChart3D'
+import { RecommendationBadge } from './RecommendationBadge'
+import { ScoreBreakdown } from './ScoreBreakdown'
+import { ScoreRing } from './ScoreRing'
 
 interface Props {
   candidate: Candidate
@@ -40,6 +39,7 @@ export function CandidateCard({ candidate: c }: Props) {
           <div className="flex items-center gap-2">
             <span className="font-semibold text-slate-100 truncate">{c.candidate_name}</span>
             <span className="text-base">{c.category_emoji}</span>
+            {c.recommendation && <RecommendationBadge value={c.recommendation} />}
           </div>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-xs" style={{ color: c.category_color }}>{c.category}</span>
@@ -113,31 +113,31 @@ export function CandidateCard({ candidate: c }: Props) {
               {/* Fit summary */}
               <div className="pt-4">
                 <p className="text-sm text-slate-300 leading-relaxed">{c.fit_summary}</p>
+                <p className="text-[11px] text-slate-600 mt-1.5">
+                  {c.summary_source === 'llm'
+                    ? 'Written by a local AI model from the resume (personal details hidden from it). Verify before acting on it.'
+                    : 'Template summary — start Ollama for an AI-written assessment.'}
+                </p>
               </div>
 
-              {/* 3D panels */}
-              <div className="grid grid-cols-2 gap-3">
-                <div
-                  className="rounded-lg overflow-hidden"
-                  style={{ height: 160, background: '#0d0d14' }}
-                >
-                  <Canvas camera={{ position: [0, 0, 3.5], fov: 45 }}>
-                    <ScoreOrb score={c.percentage_score} color={c.category_color} />
-                    <OrbitControls enableZoom={false} enablePan={false} autoRotate autoRotateSpeed={0.5} />
-                  </Canvas>
+              {/* Strengths and gaps (LLM assessments only) */}
+              {(c.strengths.length > 0 || c.gaps.length > 0) && (
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <PointList title="Strengths" items={c.strengths} icon={<Check size={13} className="text-emerald-400" />} />
+                  <PointList title="Gaps to probe" items={c.gaps} icon={<CircleHelp size={13} className="text-amber-400" />} />
                 </div>
-                <div
-                  className="rounded-lg overflow-hidden"
-                  style={{ height: 160, background: '#0d0d14' }}
-                >
-                  <Canvas camera={{ position: [0, 0, 3.8], fov: 45 }}>
-                    <RadarChart3D
-                      semantic={c.semantic_score}
-                      skillCoverage={c.skill_coverage_score}
-                      experience={c.experience_score}
-                      color={c.category_color}
-                    />
-                  </Canvas>
+              )}
+
+              {/* Score breakdown */}
+              <div className="flex items-center gap-5 rounded-lg p-4" style={{ background: '#0d0d14' }}>
+                <ScoreRing score={c.percentage_score} color={c.category_color} />
+                <div className="flex-1 min-w-0">
+                  <ScoreBreakdown
+                    semantic={c.semantic_score}
+                    skillCoverage={c.skill_coverage_score}
+                    experience={c.experience_score}
+                    color={c.category_color}
+                  />
                 </div>
               </div>
 
@@ -152,9 +152,26 @@ export function CandidateCard({ candidate: c }: Props) {
 }
 
 /** Contact values may or may not already carry a scheme (e.g. "github.com/x" vs "https://site.dev"). */
-function toHref(value: string | null): string | null {
+function toHref(value: string | null | undefined): string | null {
   if (!value) return null
   return /^https?:\/\//i.test(value) ? value : `https://${value}`
+}
+
+function PointList({ title, items, icon }: { title: string; items: string[]; icon: React.ReactNode }) {
+  if (items.length === 0) return null
+  return (
+    <div>
+      <h4 className="text-xs font-semibold text-slate-400 mb-1.5">{title}</h4>
+      <ul className="space-y-1">
+        {items.map(item => (
+          <li key={item} className="flex gap-2 text-sm text-slate-300">
+            <span className="mt-1 shrink-0">{icon}</span>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
 }
 
 function ContactGrid({ contact }: { contact: Candidate['contact'] }) {

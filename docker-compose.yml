@@ -1,13 +1,17 @@
-# App + local LLM. First run downloads the Ollama model (~2GB for llama3.2),
-# so the app starts once that finishes. Open http://localhost:8000
+# App + local LLM. First run downloads the Ollama model (~7.6GB for
+# gemma4:12b), so the app starts once that finishes. Open http://localhost:8000
+#
+# On macOS, Docker can't use the Apple GPU, so the LLM runs on the CPU and is
+# very slow. There, run Ollama natively (brew install ollama) and start only
+# the app: docker compose up app, with OLLAMA_BASE_URL=http://host.docker.internal:11434
 services:
   app:
     build: .
     ports:
       - "8000:8000"
     environment:
-      OLLAMA_BASE_URL: http://ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:12b}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     depends_on:
       ollama-pull:
@@ -25,7 +29,7 @@ services:
     image: ollama/ollama:latest
     environment:
       OLLAMA_HOST: ollama:11434
-      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-gemma4:12b}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - until ollama list >/dev/null 2>&1; do sleep 1; done; ollama pull "$$OLLAMA_MODEL"

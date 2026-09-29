@@ -40,12 +40,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Load the models once at startup so no request pays the cold-start cost."""
     logger.info("Loading models…")
     app.state.embedding_engine = await asyncio.to_thread(EmbeddingEngine.from_settings, settings)
-    app.state.summarizer = await asyncio.to_thread(
-        CandidateSummarizer,
-        base_url=settings.ollama_base_url,
-        model=settings.ollama_model,
-        timeout=settings.ollama_timeout,
-    )
+    app.state.summarizer = CandidateSummarizer.from_settings(settings)
     logger.info("Candidate Recommender API ready — docs at /api/docs")
     yield
 

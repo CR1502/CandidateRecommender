@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from loguru import logger
 
+from candidate_recommender.api.dependencies import get_summarizer
 from candidate_recommender.api.schemas.responses import ExtractResponse
 from candidate_recommender.api.services.pipeline import run_extract_pipeline
 from candidate_recommender.config import ALLOWED_EXTENSIONS
+from candidate_recommender.core.summarizer import CandidateSummarizer
 
 router = APIRouter(tags=["extract"])
 
@@ -13,6 +15,7 @@ router = APIRouter(tags=["extract"])
 @router.post("/extract", response_model=ExtractResponse)
 async def extract_resume(
     file: UploadFile = File(..., description="Single resume file (PDF, DOCX, TXT)"),
+    summarizer: CandidateSummarizer = Depends(get_summarizer),
 ) -> ExtractResponse:
     """
     Extract contact information and skills from a single resume without ranking.
@@ -26,7 +29,7 @@ async def extract_resume(
         )
 
     try:
-        return await run_extract_pipeline(file)
+        return await run_extract_pipeline(file, summarizer)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e)) from e
     except Exception as e:

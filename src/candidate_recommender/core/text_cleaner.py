@@ -238,63 +238,6 @@ class TextCleaner:
 
         return found[:limit] if limit else found
 
-    def extract_skills_with_llm(
-        self,
-        text: str,
-        base_url: str = "http://localhost:11434",
-        model: str = "llama3.2",
-    ) -> list[str]:
-        """
-        Use Ollama to extract skills from text.
-
-        This catches technologies not in SKILL_REGISTRY (newer frameworks,
-        domain-specific tools, niche libraries) and normalises naming
-        (e.g. "Postgres" → "PostgreSQL", "k8s" → "Kubernetes").
-
-        Falls back to dictionary extraction if Ollama is unavailable or returns
-        unparseable output.
-        """
-        import json as _json
-
-        try:
-            import requests as _req
-
-            prompt = (
-                "List every technical skill in this text: programming languages, "
-                "frameworks, libraries, databases, cloud services, DevOps tools, "
-                "ML frameworks, and methodologies. Use common canonical names "
-                "(e.g. 'PostgreSQL' not 'postgres', 'Kubernetes' not 'k8s'). "
-                "Return ONLY a JSON array of short strings. No explanation.\n\n"
-                f"Text:\n{text[:1800]}\n\nJSON array:"
-            )
-
-            r = _req.post(
-                f"{base_url}/api/generate",
-                json={
-                    "model": model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {"temperature": 0.05, "num_predict": 300},
-                },
-                timeout=20,
-            )
-            if r.status_code == 200:
-                raw = r.json().get("response", "").strip()
-                # Ollama sometimes wraps the array in prose — extract just the []
-                m = re.search(r"\[.*\]", raw, re.DOTALL)
-                if m:
-                    skills = _json.loads(m.group(0))
-                    if isinstance(skills, list):
-                        cleaned = [
-                            s.strip() for s in skills if s and isinstance(s, str) and len(s) < 60
-                        ]
-                        return self.canonicalize_skills(cleaned)[:25]
-        except Exception as e:
-            logger.debug(f"LLM skill extraction failed: {e}")
-
-        # Fallback
-        return self.extract_key_skills(text)
-
     def canonicalize_skill(self, name: str) -> str:
         """
         Map a free-form skill name (e.g. from the LLM) onto its SKILL_REGISTRY

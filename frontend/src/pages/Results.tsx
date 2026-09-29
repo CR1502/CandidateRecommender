@@ -20,13 +20,16 @@ function csvCell(value: string | number): string {
 }
 
 function buildCSV(candidates: ReturnType<typeof useAppStore.getState>['candidates']): string {
-  const header = ['Rank', 'Name', 'Score (%)', 'Category', 'Matching Skills', 'Email', 'Phone', 'LinkedIn', 'Summary']
+  const header = ['Rank', 'Name', 'Score (%)', 'Category', 'AI Recommendation', 'Matching Skills', 'Strengths', 'Gaps', 'Email', 'Phone', 'LinkedIn', 'Summary']
   const rows = candidates.map(c => [
     c.rank,
     c.candidate_name,
     c.percentage_score.toFixed(1),
     c.category,
+    c.recommendation ?? '',
     c.matching_skills.join('; '),
+    c.strengths.join('; '),
+    c.gaps.join('; '),
     c.contact.email ?? '',
     c.contact.phone ?? '',
     c.contact.linkedin ?? '',

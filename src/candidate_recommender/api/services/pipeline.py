@@ -1,5 +1,9 @@
 """
-Main processing pipeline: files → text → embeddings → rank → enrich → summaries.
+Main processing pipeline: files → text → embeddings → rank → enrich → assessments.
+
+`run_ranking_pipeline` returns the result; `stream_ranking_pipeline` yields
+progress events while it works (used by POST /api/rank/stream), since LLM
+assessments can take several seconds per candidate.
 """
 
 from __future__ import annotations
@@ -7,6 +11,9 @@ from __future__ import annotations
 import asyncio
 import io
 import time
+from collections.abc import AsyncIterator, Callable
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
 from fastapi import UploadFile
 from loguru import logger
@@ -25,11 +32,16 @@ from candidate_recommender.core.summarizer import CandidateSummarizer
 from candidate_recommender.core.text_cleaner import TextCleaner
 
 _settings = get_settings()
-OLLAMA_BASE_URL = _settings.ollama_base_url
-OLLAMA_MODEL = _settings.ollama_model
-
 _file_processor = FileProcessor(max_file_size_mb=_settings.max_file_size_mb)
 _text_cleaner = TextCleaner()
+
+# progress(stage, done, total). Stages, in order: extracting, ranking,
+# enriching, assessing.
+Progress = Callable[[str, int, int], None]
+
+
+def _no_progress(stage: str, done: int, total: int) -> None:
+    pass
 
 
 def _run_ranking_sync(
@@ -38,12 +50,14 @@ def _run_ranking_sync(
     embedding_engine: EmbeddingEngine,
     summarizer: CandidateSummarizer,
     top_k: int,
+    progress: Progress = _no_progress,
 ) -> RankResponse:
     start = time.time()
 
     # --- 1. Extract text ---
     resumes: list[dict] = []
-    for filename, content in file_payloads:
+    for i, (filename, content) in enumerate(file_payloads):
+        progress("extracting", i, len(file_payloads))
         file_obj = io.BytesIO(content)
         try:
             is_valid, err = _file_processor.validate_file(file_obj, filename)
@@ -65,6 +79,7 @@ def _run_ranking_sync(
             )
         except Exception as e:
             logger.error(f"Failed to process {filename}: {e}")
+    progress("extracting", len(file_payloads), len(file_payloads))
 
     if not resumes:
         raise ValueError(
@@ -72,50 +87,27 @@ def _run_ranking_sync(
             "Check that the files are readable PDFs, DOCX, or plain text."
         )
 
-    # --- 2. Rank (uses dictionary skills for speed) ---
+    # --- 2. Rank ---
+    progress("ranking", 0, 1)
     clean_jd = _text_cleaner.prepare_for_embedding(job_description)
     ranked = embedding_engine.rank_candidates(clean_jd, resumes, top_k=top_k)
+    progress("ranking", 1, 1)
 
-    # --- 3. Contact info (on raw text) ---
-    for candidate in ranked:
-        candidate["contact"] = _text_cleaner.extract_contact_details(
-            candidate.get("raw_text", candidate["text"])
-        )
-
-    # --- 4. Skill extraction for display (LLM if available, dictionary otherwise) ---
-    # JD skills extracted ONCE here, not once per candidate.
-    # Both sides use the same extraction method so the intersection is meaningful.
-    use_llm_skills = summarizer._ollama_available
-    if use_llm_skills:
-        jd_skills = set(
-            _text_cleaner.extract_skills_with_llm(
-                clean_jd, base_url=OLLAMA_BASE_URL, model=OLLAMA_MODEL
-            )
-        )
-    else:
-        jd_skills = set(_text_cleaner.extract_key_skills(clean_jd))
-
+    # --- 3. Contact info and keyword skill matches (on raw text) ---
+    jd_skills = {s.lower() for s in _text_cleaner.extract_key_skills(clean_jd)}
     for candidate in ranked:
         raw = candidate.get("raw_text", candidate["text"])
-        if use_llm_skills:
-            resume_skills = set(
-                _text_cleaner.extract_skills_with_llm(
-                    raw, base_url=OLLAMA_BASE_URL, model=OLLAMA_MODEL
-                )
-            )
-        else:
-            resume_skills = set(_text_cleaner.extract_key_skills(raw))
-        # LLM names are canonicalised to registry names; compare case-insensitively too
-        jd_lower = {s.lower() for s in jd_skills}
-        candidate["matching_skills"] = sorted(s for s in resume_skills if s.lower() in jd_lower)
+        candidate["contact"] = _text_cleaner.extract_contact_details(raw)
+        candidate["matching_skills"] = [
+            s for s in _text_cleaner.extract_key_skills(raw) if s.lower() in jd_skills
+        ]
 
-    # --- 5. URL enrichment: follow GitHub + portfolio links ---
+    # --- 4. URL enrichment: follow GitHub + portfolio links, candidates in parallel ---
     # Stored on the candidate itself: names (and filenames) can collide.
-    for candidate in ranked:
+    def enrich(candidate: dict[str, Any]) -> None:
         raw = candidate.get("raw_text", candidate["text"])
-        contact = candidate.get("contact", {})
         try:
-            ctx = enrich_candidate(raw, contact)
+            ctx = enrich_candidate(raw, candidate.get("contact", {}))
         except Exception as e:
             logger.warning(f"Enrichment failed for {candidate['filename']}: {e}")
             ctx = ""
@@ -125,8 +117,16 @@ def _run_ranking_sync(
                 f"Enriched {candidate['candidate_name']} ({len(ctx)} chars from online profiles)"
             )
 
-    # --- 6. Summaries (with enriched context) ---
-    ranked = summarizer.batch_generate_summaries(ranked, clean_jd)
+    progress("enriching", 0, len(ranked))
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        for i, _ in enumerate(pool.map(enrich, ranked), start=1):
+            progress("enriching", i, len(ranked))
+
+    # --- 5. Assessments (LLM or template), with enriched context ---
+    progress("assessing", 0, len(ranked))
+    ranked = summarizer.batch_assess(
+        ranked, clean_jd, progress=lambda done, total: progress("assessing", done, total)
+    )
 
     duration_ms = int((time.time() - start) * 1000)
     return RankResponse(
@@ -137,6 +137,10 @@ def _run_ranking_sync(
     )
 
 
+async def _read_uploads(files: list[UploadFile]) -> list[tuple[str, bytes]]:
+    return [(f.filename or "upload", await f.read()) for f in files]
+
+
 async def run_ranking_pipeline(
     job_description: str,
     files: list[UploadFile],
@@ -144,42 +148,79 @@ async def run_ranking_pipeline(
     summarizer: CandidateSummarizer,
     top_k: int = 10,
 ) -> RankResponse:
-    file_payloads = []
-    for f in files:
-        content = await f.read()
-        file_payloads.append((f.filename or "upload", content))
-
+    file_payloads = await _read_uploads(files)
     return await asyncio.to_thread(
-        _run_ranking_sync,
-        job_description,
-        file_payloads,
-        embedding_engine,
-        summarizer,
-        top_k,
+        _run_ranking_sync, job_description, file_payloads, embedding_engine, summarizer, top_k
     )
 
 
-def _run_extract_sync(filename: str, content: bytes) -> ExtractResponse:
+async def stream_ranking_pipeline(
+    job_description: str,
+    files: list[UploadFile],
+    embedding_engine: EmbeddingEngine,
+    summarizer: CandidateSummarizer,
+    top_k: int = 10,
+) -> AsyncIterator[dict[str, Any]]:
+    """
+    Run the pipeline in a worker thread, yielding
+    {"event": "progress", "stage", "done", "total"} as it goes, then a final
+    {"event": "result", "data": RankResponse} — or raising what the
+    pipeline raised.
+    """
+    file_payloads = await _read_uploads(files)
+    loop = asyncio.get_running_loop()
+    events: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
+    def progress(stage: str, done: int, total: int) -> None:
+        event = {"event": "progress", "stage": stage, "done": done, "total": total}
+        loop.call_soon_threadsafe(events.put_nowait, event)
+
+    task = asyncio.create_task(
+        asyncio.to_thread(
+            _run_ranking_sync,
+            job_description,
+            file_payloads,
+            embedding_engine,
+            summarizer,
+            top_k,
+            progress,
+        )
+    )
+    while not task.done():
+        getter = asyncio.create_task(events.get())
+        finished, _ = await asyncio.wait({getter, task}, return_when=asyncio.FIRST_COMPLETED)
+        if getter in finished:
+            yield getter.result()
+        else:
+            getter.cancel()
+    while not events.empty():
+        yield events.get_nowait()
+    yield {"event": "result", "data": task.result()}  # re-raises pipeline errors
+
+
+def _run_extract_sync(
+    filename: str, content: bytes, summarizer: CandidateSummarizer
+) -> ExtractResponse:
     file_obj = io.BytesIO(content)
     is_valid, err = _file_processor.validate_file(file_obj, filename)
     if not is_valid:
         raise ValueError(err)
     file_obj.seek(0)
     raw_text, candidate_name = _file_processor.process_file(file_obj, filename)
-    skills = _text_cleaner.extract_skills_with_llm(
-        raw_text, base_url=OLLAMA_BASE_URL, model=OLLAMA_MODEL
-    )
-    contact = _text_cleaner.extract_contact_details(raw_text)
     return ExtractResponse(
         candidate_name=candidate_name,
-        skills=skills,
-        contact=ContactInfo(**contact),
+        skills=summarizer.extract_skills(raw_text),
+        contact=ContactInfo(**_text_cleaner.extract_contact_details(raw_text)),
     )
 
 
-async def run_extract_pipeline(file: UploadFile) -> ExtractResponse:
+async def run_extract_pipeline(
+    file: UploadFile, summarizer: CandidateSummarizer
+) -> ExtractResponse:
     content = await file.read()
-    return await asyncio.to_thread(_run_extract_sync, file.filename or "upload", content)
+    return await asyncio.to_thread(
+        _run_extract_sync, file.filename or "upload", content, summarizer
+    )
 
 
 def _to_candidate_result(c: dict) -> CandidateResult:
@@ -200,5 +241,9 @@ def _to_candidate_result(c: dict) -> CandidateResult:
         category_color=c["category_color"],
         matching_skills=c.get("matching_skills", []),
         fit_summary=c.get("fit_summary", ""),
+        strengths=c.get("strengths", []),
+        gaps=c.get("gaps", []),
+        recommendation=c.get("recommendation"),
+        summary_source=c.get("summary_source", "template"),
         contact=contact,
     )

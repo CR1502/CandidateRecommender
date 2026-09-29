@@ -1,5 +1,5 @@
 Arjun Mehta
-arjun.mehta@example.com | Chicago, IL | github.com/arjunmehta
+arjun.mehta@example.com | Chicago, IL | example.com/arjun-mehta
 
 Data engineer with 6 years of experience building large-scale batch and streaming pipelines.
 

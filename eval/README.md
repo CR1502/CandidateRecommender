@@ -15,7 +15,7 @@ environment variable for an experiment.
 ## Dataset
 
 - `data/jobs/`: 6 job descriptions (backend, ML, frontend, SRE, data engineering, marketing).
-- `data/resumes/`: 29 synthetic resumes. Contact details are fake (`example.com`).
+- `data/resumes/`: 29 synthetic resumes. Contact details are fake, and every link uses the reserved `example.com` domain, so enrichment never looks up a real person.
 - `data/qrels.json`: a grade for every job/resume pair. 3 = would interview,
   2 = plausible with gaps, 1 = related but weak, 0 = not relevant (the default for
   unlisted pairs). Grades were set before running any model.
@@ -54,7 +54,8 @@ All runs use the final 29-resume dataset.
 | Original scoring (`main` before Phase 3) | 0.908 | 0.907 | 0.27 | 45 / 138 | 46.1 / 81.8 |
 | + calibrated semantic score, missing components renormalised, relevance-gated experience | 0.935 | 0.932 | 0.20 | 3 / 138 | 24.5 / 84.2 |
 | + resume chunking (250 words, `max_mean`) | 0.943 | 0.944 | 0.20 | 3 / 138 | 25.1 / 85.8 |
-| + experience from employment dates, skill evidence and nice-to-have weighting (**current default**) | **0.948** | **0.957** | **0.20** | **2 / 138** | **25.4 / 86.3** |
+| + experience from employment dates, skill evidence and nice-to-have weighting | 0.948 | 0.957 | 0.20 | 2 / 138 | 25.4 / 86.3 |
+| Same scoring, after Phase 4 replaced the resumes' links with `example.com` (**current**) | **0.944** | **0.953** | **0.20** | **3 / 138** | **25.4 / 86.1** |
 
 ### Tried and not adopted
 
@@ -77,3 +78,34 @@ Changing the embedding model changes its cosine range, so re-sweep these values
 - The keyword stuffer still ranks #5 for the data engineering job (score 44, "Okay").
 - For the ML job, the MLOps engineer (grade 1) ranks #2, ahead of the NLP data scientist (grade 2).
 - `r25` ranks #3 for the backend job, behind a grade-2 Go engineer.
+
+## LLM assessments (Phase 4, September 2026)
+
+`run_llm_eval.py` ranks every resume per job, has the LLM assess the top 5 (what
+a recruiter reads), and compares its recommendation (Strong Yes = 3 … No = 0)
+with the grades. It needs Ollama running:
+
+```bash
+uv run python eval/run_llm_eval.py                     # OLLAMA_MODEL from settings
+OLLAMA_MODEL=qwen3:8b uv run python eval/run_llm_eval.py
+```
+
+| Model | Exact | Within 1 | False "Yes" (grade 0–1) | Missed good ("No" for grade 2–3) | Ungrounded skills | Fallbacks | Latency p50 / p90 |
+|---|---|---|---|---|---|---|---|
+| `gemma4:12b` (default) | 63% | 100% | 2 / 30 | 0 / 30 | 3% (dropped) | 0 | 18s / 22s |
+
+Measured on an 18GB M3 Pro with `LLM_CONCURRENCY=1` and `LLM_NUM_CTX=6144`.
+The two false "Yes" answers were backend engineers with Kubernetes and Terraform
+experience for the SRE job, which is arguably defensible.
+
+The LLM catches cases the ranking misses: it said "No" to the keyword-stuffed
+retail resume everywhere (including where it ranked #5), and "Strong Yes" to
+`r25`, whose hands-on experience the ranking under-weights.
+
+Memory matters more than the model. With `LLM_CONCURRENCY=2` and an 8K context,
+on the same machine with other apps open, macOS swapped heavily and generation
+fell from ~16 to 1–3 tokens a second (65–175s per candidate). With one request
+at a time and a 6K context, it held at 18s.
+
+Not yet compared: `qwen3:8b` (~5GB, faster and lighter). Run the command above
+once it's pulled.

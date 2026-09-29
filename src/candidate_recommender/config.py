@@ -52,10 +52,19 @@ class Settings(BaseSettings):
     bge_query_prefix: str = "Represent this sentence for searching relevant passages: "
 
     # Ollama — free local LLM inference. Install from https://ollama.com, then
-    # `ollama pull llama3.2` (3B, fast) or `ollama pull mistral` (7B, better).
+    # `ollama pull gemma4:12b`. Any Ollama model name works, including GGUF
+    # builds from Hugging Face ("hf.co/<org>/<repo>:<quant>").
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "llama3.2"
-    ollama_timeout: int = 60
+    ollama_model: str = "gemma4:12b"
+    ollama_timeout: int = 180  # seconds per request
+    # Context window. Ollama's default (4096) can cut off a long resume; each
+    # extra 2K tokens costs memory (~0.5GB on a 12B model), so don't overshoot.
+    llm_num_ctx: int = 6144
+    # Candidates assessed at once. On one GPU, 2 was only ~16% faster than 1
+    # and doubles the context memory; raise it on machines with memory to spare.
+    llm_concurrency: int = 1
+    # Hide names, contact details, links, and location from the LLM.
+    redact_pii: bool = True
 
     scoring_weights: ScoringWeights = ScoringWeights()
     # Raw cosine similarity is rescaled from [floor, ceiling] onto 0–1. Model

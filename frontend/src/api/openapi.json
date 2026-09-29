@@ -1,0 +1,609 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Candidate Recommender API",
+    "description": "Rank and assess job candidates using local AI models.",
+    "version": "2.0.0"
+  },
+  "paths": {
+    "/api/rank": {
+      "post": {
+        "tags": [
+          "ranking"
+        ],
+        "summary": "Rank Candidates",
+        "description": "Rank uploaded resumes against a job description.\n\nReturns candidates sorted by composite score (semantic similarity +\nskill coverage + experience alignment). See /rank/stream for a version\nthat reports progress while it works.",
+        "operationId": "rank_candidates_api_rank_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_rank_candidates_api_rank_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RankResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rank/stream": {
+      "post": {
+        "tags": [
+          "ranking"
+        ],
+        "summary": "Rank Candidates Stream",
+        "description": "Same as /rank, streamed as Server-Sent Events:\n\n- `progress`: {\"stage\": \"extracting\" | \"ranking\" | \"enriching\" | \"assessing\", \"done\", \"total\"}\n- `result`: the RankResponse JSON (last event on success)\n- `error`: {\"detail\": \"...\"} (last event on failure)\n\nRequest validation errors are returned as normal HTTP errors before the stream starts.",
+        "operationId": "rank_candidates_stream_api_rank_stream_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_rank_candidates_stream_api_rank_stream_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/event-stream": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/extract": {
+      "post": {
+        "tags": [
+          "extract"
+        ],
+        "summary": "Extract Resume",
+        "description": "Extract contact information and skills from a single resume without ranking.\nUseful for quick candidate scans or pre-processing.",
+        "operationId": "extract_resume_api_extract_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_extract_resume_api_extract_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "health"
+        ],
+        "summary": "Health Check",
+        "description": "Return current model status and Ollama availability.",
+        "operationId": "health_check_api_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Body_extract_resume_api_extract_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "Single resume file (PDF, DOCX, TXT)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_extract_resume_api_extract_post"
+      },
+      "Body_rank_candidates_api_rank_post": {
+        "properties": {
+          "job_description": {
+            "type": "string",
+            "minLength": 50,
+            "title": "Job Description",
+            "description": "Full job description text"
+          },
+          "files": {
+            "items": {
+              "type": "string",
+              "contentMediaType": "application/octet-stream"
+            },
+            "type": "array",
+            "title": "Files",
+            "description": "Resume files (PDF, DOCX, TXT)"
+          },
+          "top_k": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 50.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top K"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_description",
+          "files"
+        ],
+        "title": "Body_rank_candidates_api_rank_post"
+      },
+      "Body_rank_candidates_stream_api_rank_stream_post": {
+        "properties": {
+          "job_description": {
+            "type": "string",
+            "minLength": 50,
+            "title": "Job Description",
+            "description": "Full job description text"
+          },
+          "files": {
+            "items": {
+              "type": "string",
+              "contentMediaType": "application/octet-stream"
+            },
+            "type": "array",
+            "title": "Files",
+            "description": "Resume files (PDF, DOCX, TXT)"
+          },
+          "top_k": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 50.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top K"
+          }
+        },
+        "type": "object",
+        "required": [
+          "job_description",
+          "files"
+        ],
+        "title": "Body_rank_candidates_stream_api_rank_stream_post"
+      },
+      "CandidateResult": {
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "candidate_name": {
+            "type": "string",
+            "title": "Candidate Name"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "percentage_score": {
+            "type": "number",
+            "title": "Percentage Score"
+          },
+          "composite_score": {
+            "type": "number",
+            "title": "Composite Score"
+          },
+          "similarity_score": {
+            "type": "number",
+            "title": "Similarity Score"
+          },
+          "semantic_score": {
+            "type": "number",
+            "title": "Semantic Score"
+          },
+          "skill_coverage_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Coverage Score"
+          },
+          "experience_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Experience Score"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "category_emoji": {
+            "type": "string",
+            "title": "Category Emoji"
+          },
+          "category_color": {
+            "type": "string",
+            "title": "Category Color"
+          },
+          "matching_skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Matching Skills"
+          },
+          "fit_summary": {
+            "type": "string",
+            "title": "Fit Summary"
+          },
+          "strengths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Strengths",
+            "default": []
+          },
+          "gaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Gaps",
+            "default": []
+          },
+          "recommendation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "Strong Yes",
+                  "Yes",
+                  "Maybe",
+                  "No"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommendation"
+          },
+          "summary_source": {
+            "type": "string",
+            "enum": [
+              "llm",
+              "template"
+            ],
+            "title": "Summary Source",
+            "default": "template"
+          },
+          "contact": {
+            "$ref": "#/components/schemas/ContactInfo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rank",
+          "candidate_name",
+          "filename",
+          "percentage_score",
+          "composite_score",
+          "similarity_score",
+          "semantic_score",
+          "skill_coverage_score",
+          "experience_score",
+          "category",
+          "category_emoji",
+          "category_color",
+          "matching_skills",
+          "fit_summary",
+          "contact"
+        ],
+        "title": "CandidateResult"
+      },
+      "ContactInfo": {
+        "properties": {
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "linkedin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Linkedin"
+          },
+          "github": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Github"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "website": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Website"
+          }
+        },
+        "type": "object",
+        "title": "ContactInfo"
+      },
+      "ExtractResponse": {
+        "properties": {
+          "candidate_name": {
+            "type": "string",
+            "title": "Candidate Name"
+          },
+          "skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skills"
+          },
+          "contact": {
+            "$ref": "#/components/schemas/ContactInfo"
+          }
+        },
+        "type": "object",
+        "required": [
+          "candidate_name",
+          "skills",
+          "contact"
+        ],
+        "title": "ExtractResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "embedding_model": {
+            "type": "string",
+            "title": "Embedding Model"
+          },
+          "embedding_device": {
+            "type": "string",
+            "title": "Embedding Device"
+          },
+          "ollama_available": {
+            "type": "boolean",
+            "title": "Ollama Available"
+          },
+          "ollama_model": {
+            "type": "string",
+            "title": "Ollama Model"
+          },
+          "summary_mode": {
+            "type": "string",
+            "title": "Summary Mode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "embedding_model",
+          "embedding_device",
+          "ollama_available",
+          "ollama_model",
+          "summary_mode"
+        ],
+        "title": "HealthResponse"
+      },
+      "RankResponse": {
+        "properties": {
+          "total_processed": {
+            "type": "integer",
+            "title": "Total Processed"
+          },
+          "total_duration_ms": {
+            "type": "integer",
+            "title": "Total Duration Ms"
+          },
+          "job_description": {
+            "type": "string",
+            "title": "Job Description"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/CandidateResult"
+            },
+            "type": "array",
+            "title": "Candidates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_processed",
+          "total_duration_ms",
+          "job_description",
+          "candidates"
+        ],
+        "title": "RankResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
