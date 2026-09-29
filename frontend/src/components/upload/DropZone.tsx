@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react'
-import { motion } from 'framer-motion'
-import { UploadCloud } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useAppStore } from '../../store/useAppStore'
 
 const ACCEPTED = ['.pdf', '.docx', '.txt']
@@ -13,7 +12,8 @@ function filterFiles(list: FileList | null): File[] {
   )
 }
 
-export function DropZone() {
+/** The "in-tray": drag resumes in, or click to browse. */
+export function DropZone({ disabled = false }: { disabled?: boolean }) {
   const { files, setFiles } = useAppStore()
   const [dragging, setDragging] = useState(false)
 
@@ -26,7 +26,7 @@ export function DropZone() {
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setDragging(false)
-    addFiles(filterFiles(e.dataTransfer.files))
+    if (!disabled) addFiles(filterFiles(e.dataTransfer.files))
   }
 
   const onInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -35,13 +35,12 @@ export function DropZone() {
   }
 
   return (
-    <motion.label
+    <label
       htmlFor="resume-upload"
-      className="relative flex flex-col items-center justify-center w-full cursor-pointer rounded-xl border-2 border-dashed transition-colors duration-200 p-8"
-      animate={{
-        borderColor: dragging ? '#6366f1' : files.length > 0 ? '#4f46e5' : '#2d2d44',
-        backgroundColor: dragging ? 'rgba(99,102,241,0.08)' : 'rgba(255,255,255,0.02)',
-      }}
+      className={`group relative block cursor-pointer border border-dashed px-6 py-9 text-center transition-colors duration-200
+        focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent
+        ${dragging ? 'border-accent bg-accent-wash' : 'border-ink-3 hover:border-ink'}
+        ${disabled ? 'pointer-events-none opacity-50' : ''}`}
       onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
       onDragLeave={() => setDragging(false)}
       onDrop={onDrop}
@@ -53,36 +52,46 @@ export function DropZone() {
         accept={ACCEPT_MIME}
         className="sr-only"
         onChange={onInput}
+        disabled={disabled}
       />
 
-      <motion.div
-        animate={{ scale: dragging ? 1.1 : 1 }}
-        transition={{ type: 'spring', stiffness: 300 }}
-      >
-        <UploadCloud
-          className="mb-3 mx-auto"
-          size={36}
-          color={dragging ? '#818cf8' : files.length > 0 ? '#6366f1' : '#475569'}
-        />
-      </motion.div>
-
-      <p className="text-sm font-medium text-slate-300">
-        {dragging ? 'Drop resumes here' : 'Drag & drop resumes'}
-      </p>
-      <p className="text-xs text-slate-500 mt-1">
-        PDF, DOCX, TXT · up to 10 MB each
-      </p>
-
-      {files.length > 0 && (
+      {/* Stacked-sheets glyph: the top sheet lifts while dragging */}
+      <div className="relative mx-auto mb-4 h-14 w-11" aria-hidden>
+        <span className="absolute inset-0 translate-x-1.5 translate-y-1.5 border border-ink-3 bg-card" />
         <motion.span
-          initial={{ scale: 0 }}
-          animate={{ scale: 1 }}
-          className="absolute -top-2.5 -right-2.5 flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold text-white"
-          style={{ background: '#6366f1' }}
+          className="absolute inset-0 border border-ink bg-card"
+          animate={dragging ? { y: -8, rotate: -6 } : { y: 0, rotate: 0 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 18 }}
         >
-          {files.length}
+          <span className="absolute left-2 right-2 top-3 border-t border-ink-3" />
+          <span className="absolute left-2 right-4 top-5 border-t border-ink-3" />
+          <span className="absolute left-2 right-3 top-7 border-t border-ink-3" />
         </motion.span>
-      )}
-    </motion.label>
+      </div>
+
+      <p className="font-display text-xl">
+        {dragging ? 'Release to file them' : 'Drop resumes here'}
+      </p>
+      <p className="mt-1 text-sm text-ink-2">
+        or <span className="underline decoration-accent decoration-2 underline-offset-4 group-hover:text-accent">browse your files</span>
+      </p>
+      <p className="label mt-4">PDF · DOCX · TXT — up to 10 MB each</p>
+
+      <AnimatePresence>
+        {files.length > 0 && (
+          <motion.span
+            key="count"
+            initial={{ scale: 1.8, opacity: 0, rotate: -18 }}
+            animate={{ scale: 1, opacity: 1, rotate: -8 }}
+            exit={{ scale: 0.6, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 420, damping: 16 }}
+            className="stamp-ink absolute -right-3 -top-4 flex items-baseline gap-1.5 border-[2.5px] border-accent bg-card px-2 py-1 text-accent"
+          >
+            <span className="font-display text-xl leading-none">{files.length}</span>
+            <span className="font-mono text-[10px] uppercase leading-none tracking-[0.08em]">filed</span>
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </label>
   )
 }

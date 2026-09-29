@@ -7,7 +7,7 @@
 | Backend API | FastAPI | Async, typed, auto-generates OpenAPI docs |
 | ML Core | sentence-transformers (ranking) + Ollama (assessments) | Both run locally |
 | Frontend | React 19 + Vite | Fast dev loop, good ecosystem |
-| Charts | SVG components; React Three Fiber only for the Home background (lazy-loaded) | No WebGL context per card; small main bundle |
+| Charts | SVG/CSS components | Readable at a glance; no WebGL, small bundle |
 | Styling | Tailwind CSS | Utility-first styling |
 | State | Zustand | Lightweight, no boilerplate vs Redux |
 | HTTP client | TanStack Query `useMutation` + `fetch` (streams Server-Sent Events) | Loading/error state built in; fetch can read a streamed POST response |
@@ -50,6 +50,8 @@ CandidateRecommender/
     │   ├── main.tsx
     │   ├── App.tsx
     │   ├── types.ts                ← Aliases over the generated API types
+    │   ├── theme.ts                ← Category / recommendation colours (CSS variables)
+    │   ├── index.css               ← Design tokens (light + dark), paper grain
     │   ├── api/
     │   │   ├── client.ts           ← fetch calls; reads the SSE progress stream
     │   │   ├── openapi.json        ← exported from the backend (make gen-api)
@@ -57,9 +59,9 @@ CandidateRecommender/
     │   ├── store/
     │   │   └── useAppStore.ts      ← Zustand store
     │   ├── components/
-    │   │   ├── three/              ← Background + ParticleField (lazy-loaded)
+    │   │   ├── layout/             ← Masthead (wordmark + live API/Ollama status)
     │   │   ├── upload/             ← DropZone, FileList, RankProgressBar
-    │   │   └── results/            ← CandidateCard, ScoreRing, ScoreBreakdown, RecommendationBadge, ScoreBar
+    │   │   └── results/            ← CandidateCard, CategoryStrip, ScoreBreakdown, RecommendationBadge
     │   └── pages/
     │       ├── Home.tsx            ← Upload + job description input
     │       └── Results.tsx         ← Ranked candidate display
@@ -260,16 +262,17 @@ FRONTEND (React)
  ▼
 RESULTS PAGE
  │
- ├── Score Distribution Bar (top)
- │     Horizontal breakdown: Perfect | Ideal | Good | Okay | Not Recommended
+ ├── Category strip (top)
+ │     Horizontal breakdown: Perfect | Ideal | Good | Okay | Not Recommended;
+ │     each segment and legend entry is also a filter
  │
  ├── Candidate Cards (main content)
  │     Sorted by rank, grouped by category
  │     Each card shows:
  │       - Name, score, category label, AI recommendation badge
- │       - Matching skills as chips
- │       - Expand → summary, strengths and gaps, ScoreRing +
- │         ScoreBreakdown (SVG), contact info
+ │       - Matching skills
+ │       - Expand → summary, strengths and gaps, ScoreBreakdown,
+ │         contact details
  │
  └── Export button → downloads CSV
 ```
@@ -278,10 +281,14 @@ RESULTS PAGE
 
 ## Visualisations
 
-- **ParticleField (Home background).** The only WebGL element left. It's loaded with `React.lazy`, so three.js (about 870KB) is a separate chunk that loads after the page is usable.
-- **ScoreRing (SVG).** The overall match as a ring gauge. It replaced ScoreOrb, which created a WebGL context per card; browsers cap those at about 16, so expanding many cards broke rendering.
-- **ScoreBreakdown (SVG).** The three composite components as labelled bars with their weights, showing "n/a" when a component doesn't apply to the job. It replaced RadarChart3D.
-- **RecommendationBadge.** The LLM's recommendation, labelled "AI" and titled as a starting point for a human reviewer.
+The UI is styled as a recruiter's dossier: warm paper, ink, and one vermilion accent, with light and dark themes that follow the OS setting. Colours are CSS variables in `index.css`, which the Tailwind config maps to class names (`bg-paper`, `text-ink-2`, `text-accent`…). Fonts are Gloock (display), Schibsted Grotesk (text) and Martian Mono (labels and numbers), loaded from Google Fonts. There's no WebGL; three.js was removed.
+
+- **CategoryStrip.** How the shortlist splits across categories. Segments and legend entries filter the list.
+- **ScoreBreakdown.** The three composite components as a ledger with bars and weights, showing "n/a" when a component doesn't apply to the job.
+- **RecommendationBadge.** The LLM's recommendation drawn as a rubber stamp labelled "AI verdict", and titled as a starting point for a human reviewer. Stamps land in rank order when results load.
+- **RankProgressBar.** The pipeline's four stages as a checklist, driven by the SSE progress stream.
+- **Masthead status.** Polls `/api/health` every 30s and shows whether the API is up and AI assessments are on.
+- **Motion.** Framer Motion, wrapped in `MotionConfig reducedMotion="user"` so the OS "reduce motion" setting is respected.
 
 ---
 
@@ -312,8 +319,8 @@ The model doesn't need a name, contact details, or location to judge fit, and se
 **Why doesn't the LLM change the ranking?**
 Ranking stays deterministic, fast, and measured by `eval/run_eval.py`. The LLM explains candidates and can disagree; letting it reorder results would make rankings slower, non-deterministic, and dependent on which model is installed.
 
-**Why R3F (React Three Fiber) over plain Three.js?**
-Three.js is imperative — you manage the render loop, refs, and cleanup manually. R3F wraps it in React's component model, so 3D elements compose naturally with the rest of the UI. Drei adds ready-made helpers (`<OrbitControls>`, `<Html>`, `<Points>`) that would take hours to write from scratch.
+**Why no 3D?**
+This is a reading tool: people scan names, scores and notes. WebGL charts were slower to read than a number and a bar, cost about 870KB of JavaScript, and per-card canvases hit the browser's limit on WebGL contexts. Plain SVG and CSS do the job.
 
 **CORS**
 FastAPI will be configured to allow `http://localhost:5173` (Vite dev server) in development. In production, the frontend is built and served as static files from FastAPI itself — no separate CORS needed.
