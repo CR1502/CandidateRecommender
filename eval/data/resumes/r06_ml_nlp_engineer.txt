@@ -1,5 +1,5 @@
 Kenji Watanabe
-kenji.watanabe@example.com | San Francisco, CA | github.com/kwatanabe
+kenji.watanabe@example.com | San Francisco, CA | example.com/kenji-watanabe
 
 Machine learning engineer with 5 years of experience shipping NLP systems.
 

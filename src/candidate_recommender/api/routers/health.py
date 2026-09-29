@@ -21,7 +21,7 @@ def health_check(
         status="ok",
         embedding_model=info.get("model_name", "unknown"),
         embedding_device=info.get("device", "unknown"),
-        ollama_available=summarizer._ollama_available,
+        ollama_available=(available := summarizer.llm_available()),
         ollama_model=summarizer.model,
-        summary_mode="ollama" if summarizer._ollama_available else "template",
+        summary_mode="ollama" if available else "template",
     )

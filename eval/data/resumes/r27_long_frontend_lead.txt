@@ -1,5 +1,5 @@
 Isabel Fontaine
-isabel.fontaine@example.com | Montreal, QC | isabelfontaine.dev
+isabel.fontaine@example.com | Montreal, QC | example.com/isabel-fontaine
 
 PROFILE
 Frontend engineer with seven years of experience across agencies, a large media company, and an early-stage startup. I like working at the boundary between design and engineering: turning rough ideas into prototypes, then into production features that stay fast and accessible as the product grows. I have led small teams, run hiring loops, and spent a lot of time on the unglamorous parts of frontend work — build tooling, testing strategy, and making the codebase pleasant for the next person.

@@ -1,5 +1,5 @@
 Elena Sokolova
-elena.sokolova@example.com | Chicago, IL | linkedin.com/in/elenasokolova
+elena.sokolova@example.com | Chicago, IL | example.com/elena-sokolova
 
 Senior Java Engineer with 7 years building backend services for insurance and banking.
 

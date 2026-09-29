@@ -1,35 +1,22 @@
-export interface ContactInfo {
-  email: string | null
-  phone: string | null
-  linkedin: string | null
-  github: string | null
-  location: string | null
-  website: string | null
-}
+// API types are generated from the backend's OpenAPI schema — don't edit them
+// by hand. Regenerate after changing a response model:
+//   uv run python -m candidate_recommender.api.export_openapi frontend/src/api/openapi.json
+//   cd frontend && npm run gen:api
+import type { components } from './api/schema'
 
-export interface Candidate {
-  rank: number
-  candidate_name: string
-  filename: string
-  percentage_score: number
-  composite_score: number
-  similarity_score: number              // raw cosine similarity
-  semantic_score: number                // calibrated 0–1 semantic match
-  skill_coverage_score: number | null   // null: job lists no recognisable skills
-  experience_score: number | null       // null: job states no years of experience
-  category: string
-  category_emoji: string
-  category_color: string
-  matching_skills: string[]
-  fit_summary: string
-  contact: ContactInfo
-}
+type Schemas = components['schemas']
 
-export interface RankResponse {
-  total_processed: number
-  total_duration_ms: number
-  job_description: string
-  candidates: Candidate[]
-}
+export type Candidate = Schemas['CandidateResult']
+export type ContactInfo = Schemas['ContactInfo']
+export type RankResponse = Schemas['RankResponse']
+export type HealthResponse = Schemas['HealthResponse']
+export type Recommendation = NonNullable<Candidate['recommendation']>
 
-export type AppStatus = 'idle' | 'loading' | 'success' | 'error'
+// Server-Sent Events from POST /api/rank/stream (not described by OpenAPI).
+export type PipelineStage = 'extracting' | 'ranking' | 'enriching' | 'assessing'
+
+export interface RankProgress {
+  stage: PipelineStage
+  done: number
+  total: number
+}

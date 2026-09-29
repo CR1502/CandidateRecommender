@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -27,6 +29,10 @@ class CandidateResult(BaseModel):
     category_color: str
     matching_skills: list[str]
     fit_summary: str
+    strengths: list[str] = []
+    gaps: list[str] = []
+    recommendation: Literal["Strong Yes", "Yes", "Maybe", "No"] | None = None
+    summary_source: Literal["llm", "template"] = "template"
     contact: ContactInfo
 
 

@@ -1,6 +1,6 @@
 # Convenience targets. Each is a thin wrapper — see README for the raw commands
 # (e.g. on Windows without make).
-.PHONY: install api web test lint format docker
+.PHONY: install api web test lint format eval eval-llm gen-api docker
 
 install:          ## Install backend + frontend dependencies
 	uv sync
@@ -23,6 +23,16 @@ lint:             ## Lint backend and frontend
 format:           ## Auto-fix lint issues and format backend code
 	uv run ruff check --fix
 	uv run ruff format
+
+eval:             ## Ranking quality on the labelled eval set
+	uv run python eval/run_eval.py
+
+eval-llm:         ## LLM assessment quality (needs Ollama running; slow)
+	uv run python eval/run_llm_eval.py
+
+gen-api:          ## Regenerate the OpenAPI schema and the frontend's API types
+	uv run python -m candidate_recommender.api.export_openapi frontend/src/api/openapi.json
+	cd frontend && npm run gen:api
 
 docker:           ## Build and run app + Ollama with Docker Compose
 	docker compose up --build

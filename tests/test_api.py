@@ -1,8 +1,9 @@
 """
-API tests for /rank, /extract and /health with the ML model mocked and
-Ollama unavailable (template summaries, dictionary skills).
+API tests for /rank, /rank/stream, /extract and /health with the ML model
+mocked and Ollama unavailable (template summaries, dictionary skills).
 """
 
+import json
 from unittest.mock import Mock, patch
 
 import numpy as np
@@ -25,7 +26,7 @@ def _resume(name: str, body: str) -> bytes:
 
 
 @pytest.fixture
-def client():
+def client(offline_llm):
     model = Mock()
     model.to.return_value = model
     model.max_seq_length = 512
@@ -41,8 +42,7 @@ def client():
 
     with patch("candidate_recommender.core.embeddings.SentenceTransformer", return_value=model):
         engine = EmbeddingEngine("test-model")
-    with patch.object(CandidateSummarizer, "_check_ollama", return_value=False):
-        summarizer = CandidateSummarizer()
+    summarizer = CandidateSummarizer(client=offline_llm)
 
     app.dependency_overrides[get_embedding_engine] = lambda: engine
     app.dependency_overrides[get_summarizer] = lambda: summarizer
@@ -93,11 +93,7 @@ def test_rank_with_only_unreadable_files_returns_422_detail(client):
 
 def test_extract(client):
     content = b"Jane Doe\njane@example.com\nSkills: Python, Docker, Kubernetes\n"
-    with patch(
-        "candidate_recommender.core.text_cleaner.TextCleaner.extract_skills_with_llm",
-        lambda self, text, **kw: self.extract_key_skills(text),
-    ):
-        resp = client.post("/api/extract", files={"file": ("jane_doe.txt", content, "text/plain")})
+    resp = client.post("/api/extract", files={"file": ("jane_doe.txt", content, "text/plain")})
 
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -144,3 +140,51 @@ def test_spa_fallback_serves_index_for_client_routes(tmp_path):
     assert web.get("/results").text == "<div id=root></div>"  # client route
     assert web.get("/api/missing").status_code == 404  # API 404s stay 404s
     assert web.get("/assets/missing.js").status_code == 404  # missing files stay 404s
+
+
+def _sse_events(text: str) -> list[tuple[str, dict]]:
+    events = []
+    for block in text.strip().split("\n\n"):
+        lines = dict(line.split(": ", 1) for line in block.splitlines())
+        events.append((lines["event"], json.loads(lines["data"])))
+    return events
+
+
+def test_rank_stream_reports_progress_then_result(client):
+    files = [
+        (
+            "files",
+            (f"c{i}.txt", _resume(f"Person {i}", "Python and Docker, 6 years."), "text/plain"),
+        )
+        for i in range(3)
+    ]
+    resp = client.post("/api/rank/stream", data={"job_description": JOB}, files=files)
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("text/event-stream")
+    events = _sse_events(resp.text)
+    names = [name for name, _ in events]
+    assert names[-1] == "result" and set(names[:-1]) == {"progress"}
+
+    stages = [data["stage"] for name, data in events if name == "progress"]
+    assert stages.index("extracting") < stages.index("ranking") < stages.index("assessing")
+    last_assess = [d for n, d in events if n == "progress" and d["stage"] == "assessing"][-1]
+    assert last_assess["done"] == last_assess["total"] == 3
+
+    result = events[-1][1]
+    assert result["total_processed"] == 3
+    assert all(c["summary_source"] == "template" for c in result["candidates"])
+
+
+def test_rank_stream_reports_pipeline_errors_as_error_event(client):
+    files = [("files", ("empty.txt", b"too short", "text/plain"))]
+    resp = client.post("/api/rank/stream", data={"job_description": JOB}, files=files)
+    assert resp.status_code == 200
+    [(name, data)] = [e for e in _sse_events(resp.text) if e[0] != "progress"]
+    assert name == "error" and "No valid resume text" in data["detail"]
+
+
+def test_rank_stream_validates_before_streaming(client):
+    files = [("files", ("resume.exe", b"binary", "application/octet-stream"))]
+    resp = client.post("/api/rank/stream", data={"job_description": JOB}, files=files)
+    assert resp.status_code == 415

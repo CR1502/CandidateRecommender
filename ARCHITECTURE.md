@@ -5,12 +5,13 @@
 | Layer | Technology | Why |
 |-------|-----------|-----|
 | Backend API | FastAPI | Async, typed, auto-generates OpenAPI docs |
-| ML Core | sentence-transformers + Ollama | Already working, just needs HTTP wrappers |
+| ML Core | sentence-transformers (ranking) + Ollama (assessments) | Both run locally |
 | Frontend | React 19 + Vite | Fast dev loop, good ecosystem |
-| 3D | React Three Fiber (R3F) + Drei | Declarative Three.js in React, minimal boilerplate |
+| Charts | SVG components; React Three Fiber only for the Home background (lazy-loaded) | No WebGL context per card; small main bundle |
 | Styling | Tailwind CSS | Utility-first styling |
 | State | Zustand | Lightweight, no boilerplate vs Redux |
-| HTTP client | TanStack Query + axios | Caching, loading states, error boundaries built in |
+| HTTP client | TanStack Query `useMutation` + `fetch` (streams Server-Sent Events) | Loading/error state built in; fetch can read a streamed POST response |
+| API types | Generated from the OpenAPI schema (`openapi-typescript`) | Frontend types can't drift from the backend |
 
 ---
 
@@ -20,7 +21,7 @@
 CandidateRecommender/
 ├── src/candidate_recommender/      ← single Python package (installed by uv)
 │   ├── config.py                   ← pydantic-settings Settings + score tiers
-│   ├── api/                        ← FastAPI app
+│   ├── api/                        ← FastAPI app (export_openapi.py writes the schema)
 │   │   ├── main.py                 ← App, lifespan model loading, CORS, SPA static serving
 │   │   ├── dependencies.py         ← Hands the models on app.state to routes
 │   │   ├── routers/
@@ -35,6 +36,8 @@ CandidateRecommender/
 │       ├── embeddings.py
 │       ├── experience.py
 │       ├── enricher.py
+│       ├── llm.py                  ← Ollama client (structured JSON, availability, cache)
+│       ├── redact.py               ← strips personal details before the LLM
 │       ├── summarizer.py
 │       ├── text_cleaner.py
 │       └── file_processor.py
@@ -46,15 +49,17 @@ CandidateRecommender/
     ├── src/
     │   ├── main.tsx
     │   ├── App.tsx
-    │   ├── types.ts                ← Mirrors the API response models
+    │   ├── types.ts                ← Aliases over the generated API types
     │   ├── api/
-    │   │   └── client.ts           ← axios instance + typed API calls
+    │   │   ├── client.ts           ← fetch calls; reads the SSE progress stream
+    │   │   ├── openapi.json        ← exported from the backend (make gen-api)
+    │   │   └── schema.d.ts         ← generated from openapi.json — don't edit
     │   ├── store/
     │   │   └── useAppStore.ts      ← Zustand store
     │   ├── components/
-    │   │   ├── three/              ← ParticleField, ScoreOrb, RadarChart3D
-    │   │   ├── upload/             ← DropZone, FileList
-    │   │   └── results/            ← CandidateCard, ScoreBar
+    │   │   ├── three/              ← Background + ParticleField (lazy-loaded)
+    │   │   ├── upload/             ← DropZone, FileList, RankProgressBar
+    │   │   └── results/            ← CandidateCard, ScoreRing, ScoreBreakdown, RecommendationBadge, ScoreBar
     │   └── pages/
     │       ├── Home.tsx            ← Upload + job description input
     │       └── Results.tsx         ← Ranked candidate display
@@ -102,7 +107,11 @@ top_k:           int             (optional, 1–50; defaults to TOP_CANDIDATES_C
       "category_emoji": "🌟",
       "category_color": "#00D26A",
       "matching_skills": ["Python", "FastAPI", "Docker", "AWS", "PostgreSQL"],
-      "fit_summary": "This candidate is an excellent fit...",
+      "fit_summary": "The candidate built payment APIs in FastAPI and PostgreSQL...",
+      "strengths": ["8 years building payment APIs", "Production Kubernetes on AWS"],
+      "gaps": ["Probe depth with Kafka"],
+      "recommendation": "Strong Yes",    // null for template summaries
+      "summary_source": "llm",           // "llm" | "template"
       "contact": {
         "email": "alice@example.com",
         "phone": "+1 (555) 234-5678",
@@ -130,6 +139,25 @@ top_k:           int             (optional, 1–50; defaults to TOP_CANDIDATES_C
 // 500 — internal error (details are logged server-side, not returned)
 { "detail": "Processing failed due to an internal error." }
 ```
+
+---
+
+### `POST /api/rank/stream`
+
+Same form fields and validation as `/api/rank`, but the response is a stream of Server-Sent Events (`text/event-stream`), because LLM assessments take several seconds per candidate:
+
+```
+event: progress
+data: {"stage": "assessing", "done": 3, "total": 10}     // stages: extracting, ranking, enriching, assessing
+
+event: result
+data: { ...RankResponse... }                               // last event on success
+
+event: error
+data: {"detail": "No valid resume text could be extracted..."}   // last event on failure
+```
+
+Validation errors (415, 413, 422) are returned as normal HTTP responses before the stream starts. The frontend reads the stream with `fetch`, since `EventSource` only supports GET.
 
 ---
 
@@ -182,9 +210,8 @@ USER
  ▼
 FRONTEND (React)
  │
- │  Zustand store sets: { status: 'uploading', files: [...] }
- │  Multipart POST → /api/rank
- │  TanStack Query manages loading / error / success states
+ │  useMutation → multipart POST /api/rank/stream
+ │  progress events drive the progress bar; Cancel aborts the fetch
  ▼
 BACKEND (FastAPI)
  │
@@ -215,25 +242,23 @@ BACKEND (FastAPI)
  │         ↓
  │  ┌─────────────────────────────────────────┐
  │  │  For each ranked candidate:              │
- │  │    EmbeddingEngine.find_matching_skills()│
- │  │    TextCleaner.extract_contact_details() │
- │  │    CandidateSummarizer.generate_fit_summary() │
- │  │      (Ollama if available, else template) │
+ │  │    contact details + keyword skill match │
+ │  │    GitHub/portfolio enrichment (parallel)│
+ │  │    CandidateSummarizer.batch_assess()    │
+ │  │      redact PII → one structured Ollama  │
+ │  │      call → summary, strengths, gaps,    │
+ │  │      recommendation (template fallback)  │
  │  └─────────────────────────────────────────┘
  │         ↓
  │  Serialise to RankResponse JSON
  ▼
 FRONTEND (React)
  │
- │  TanStack Query updates cache with response
- │  Zustand store: { status: 'success', candidates: [...] }
+ │  Zustand store: setResults(result) — persisted to sessionStorage
  │
  │  Navigate to Results page
  ▼
 RESULTS PAGE
- │
- ├── 3D Scene (background)
- │     ParticleField — animated particle cloud, density reacts to top score
  │
  ├── Score Distribution Bar (top)
  │     Horizontal breakdown: Perfect | Ideal | Good | Okay | Not Recommended
@@ -241,75 +266,29 @@ RESULTS PAGE
  ├── Candidate Cards (main content)
  │     Sorted by rank, grouped by category
  │     Each card shows:
- │       - Name, score badge, category label
+ │       - Name, score, category label, AI recommendation badge
  │       - Matching skills as chips
- │       - Fit summary
- │       - Expand → contact info + ScoreOrb 3D widget + RadarChart3D
+ │       - Expand → summary, strengths and gaps, ScoreRing +
+ │         ScoreBreakdown (SVG), contact info
  │
  └── Export button → downloads CSV
 ```
 
 ---
 
-## 3D Elements
+## Visualisations
 
-Three distinct 3D moments — each purposeful, not decorative noise:
-
-### 1. ParticleField (Home page background)
-- Floating particle cloud built with `<Points>` from Drei
-- Particles slowly drift and rotate
-- On file upload, particles pulse outward (scale animation triggered by file count)
-- Keeps the landing page from feeling static without distracting from the form
-
-### 2. ScoreOrb (inside expanded CandidateCard)
-- Glowing sphere whose colour maps to the candidate's score
-  - ≥85% → green `#00D26A`
-  - 70–85% → teal `#4CAF50`
-  - 50–70% → amber `#FFA726`
-  - <50% → red `#F44336`
-- Outer shell has a subtle wireframe that spins
-- Score number floats as HTML overlay (via `<Html>` from Drei) so it's selectable/readable
-- Renders inside a small fixed-size canvas per card — not a full-screen scene
-
-### 3. RadarChart3D (inside expanded CandidateCard)
-- 3-axis radar showing the three scoring components:
-  - Semantic match (0–1)
-  - Skill coverage (0–1)
-  - Experience alignment (0–1)
-- Built with custom geometry — three axes drawn as lines, filled polygon as a mesh
-- Hovering an axis shows a tooltip with the raw value
-- Makes composite scoring transparent — the user can see *why* someone scored what they did
+- **ParticleField (Home background).** The only WebGL element left. It's loaded with `React.lazy`, so three.js (about 870KB) is a separate chunk that loads after the page is usable.
+- **ScoreRing (SVG).** The overall match as a ring gauge. It replaced ScoreOrb, which created a WebGL context per card; browsers cap those at about 16, so expanding many cards broke rendering.
+- **ScoreBreakdown (SVG).** The three composite components as labelled bars with their weights, showing "n/a" when a component doesn't apply to the job. It replaced RadarChart3D.
+- **RecommendationBadge.** The LLM's recommendation, labelled "AI" and titled as a starting point for a human reviewer.
 
 ---
 
-## Frontend State Shape (Zustand)
+## Frontend State
 
-```ts
-interface AppState {
-  // Upload stage
-  jobDescription: string
-  files: File[]
-  status: 'idle' | 'uploading' | 'success' | 'error'
-  error: string | null
-
-  // Results
-  candidates: Candidate[]
-  jobDescriptionSnapshot: string   // what was submitted (for display)
-  expandedCandidateId: string | null
-
-  // Filters / UI
-  showNotRecommended: boolean
-  categoryFilter: string | null     // null = all
-  searchQuery: string
-
-  // Actions
-  setJobDescription: (jd: string) => void
-  setFiles: (files: File[]) => void
-  setResults: (data: RankResponse) => void
-  setExpanded: (name: string | null) => void
-  reset: () => void
-}
-```
+- **Request state** (pending, error, progress) comes from React Query's `useMutation` on the Home page.
+- **Zustand** holds the form (job description, files) and the results and filters. Results persist to `sessionStorage`, so a refresh keeps them but closing the tab clears them, since they include contact details. Files can't be serialised and aren't persisted.
 
 ---
 
@@ -325,7 +304,13 @@ The regex patterns that extract phone numbers, emails, and LinkedIn handles need
 This app has one main data event (ranking completes) and a handful of UI filters. Redux is overkill. Context re-renders the whole tree on every update. Zustand gives per-slice subscriptions with no boilerplate.
 
 **Why TanStack Query alongside Zustand?**
-TanStack Query handles the async lifecycle (loading, error, retries, cache invalidation) for API calls. Zustand holds the derived UI state (filters, expanded card, etc). Mixing them is intentional — they solve different problems.
+TanStack Query handles the request lifecycle (pending, error) for the ranking call. Zustand holds the form and the results, which must outlive the request and survive a refresh. They solve different problems.
+
+**Why redact before the LLM?**
+The model doesn't need a name, contact details, or location to judge fit, and seeing them invites bias. The name is taken from the resume's first line, not the filename, so a file like `final_v2.pdf` can't cause ordinary words to be redacted.
+
+**Why doesn't the LLM change the ranking?**
+Ranking stays deterministic, fast, and measured by `eval/run_eval.py`. The LLM explains candidates and can disagree; letting it reorder results would make rankings slower, non-deterministic, and dependent on which model is installed.
 
 **Why R3F (React Three Fiber) over plain Three.js?**
 Three.js is imperative — you manage the render loop, refs, and cleanup manually. R3F wraps it in React's component model, so 3D elements compose naturally with the rest of the UI. Drei adds ready-made helpers (`<OrbitControls>`, `<Html>`, `<Points>`) that would take hours to write from scratch.

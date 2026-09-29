@@ -29,7 +29,8 @@ Resumes (PDF/DOCX/TXT) ─┐
 Job description ────────┘                                                        │
                                               contact details, matching skills ◄─┤
                                          GitHub / portfolio enrichment (public) ◄─┤
-                                            fit summary (Ollama, or template) ◄──┘
+                        assessment: summary, strengths, gaps,  ◄──┘
+                        recommendation (local LLM, or template)
 ```
 
 **Composite score**, per candidate:
@@ -52,7 +53,13 @@ If a job lists no recognisable skills or states no years of experience, that com
 
 These choices were measured against a labelled evaluation set. See [eval/README.md](eval/README.md) for the results, including the models and rerankers that were tried and not adopted.
 
-**Fit summaries** come from a local Ollama model (default `llama3.2`) when it's running, and otherwise from a deterministic template built from the extracted signals.
+**Assessments** come from a local LLM through [Ollama](https://ollama.com), default `gemma4:12b`, when it's running. Each candidate gets one structured call that returns a 2–3 sentence summary, up to three strengths and three gaps to probe, and a recommendation (Strong Yes / Yes / Maybe / No). Before the resume reaches the model:
+
+- The candidate's name, email, phone, links, and location are **redacted**, to reduce bias and keep personal data out of prompts.
+- All supplied text is wrapped in tags the model is told to treat as data, so a resume saying "ignore your instructions" can't redirect it.
+- Skills the model reports are kept only if they actually appear in the resume.
+
+Without Ollama, a deterministic template summary is used instead. Ollama availability is re-checked every 30 seconds, so starting it later needs no restart. Assessments take roughly 10–30 seconds per candidate on a laptop, so the UI shows live progress (`POST /api/rank/stream`).
 
 ## Quick Start
 
@@ -62,7 +69,9 @@ These choices were measured against a labelled evaluation set. See [eval/README.
 docker compose up --build
 ```
 
-Open http://localhost:8000. The first run downloads the Ollama model (about 2GB for `llama3.2`), and the app starts once that finishes. Use `OLLAMA_MODEL=mistral docker compose up` to choose a different model.
+Open http://localhost:8000. The first run downloads the Ollama model (about 7.6GB for `gemma4:12b`), and the app starts once that finishes. Use `OLLAMA_MODEL=qwen3:8b docker compose up` to choose a different model.
+
+On macOS, Docker can't use the Apple GPU, so an LLM in Docker is very slow. Run Ollama natively instead (see Option B) and start only the app: `OLLAMA_BASE_URL=http://host.docker.internal:11434 docker compose up app`.
 
 ### Option B: Local development
 
@@ -79,8 +88,9 @@ uv run uvicorn candidate_recommender.api.main:app --reload --port 8000
 # Terminal 2 — frontend on http://localhost:5173 (proxies /api to :8000)
 cd frontend && npm run dev
 
-# Optional — local LLM for real summaries
-ollama pull llama3.2
+# Optional — local LLM for AI assessments (one-time ~7.6GB download)
+brew install ollama && brew services start ollama   # macOS; see ollama.com for others
+ollama pull gemma4:12b
 ```
 
 With `make` installed, these are `make install`, `make api`, and `make web`.
@@ -97,8 +107,11 @@ All settings are environment variables (or a `.env` file; copy [`.env.example`](
 |---|---|---|
 | `EMBEDDING_MODEL` | `BAAI/bge-small-en-v1.5` | Sentence-transformers model; `BAAI/bge-base-en-v1.5` is more accurate but larger |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server |
-| `OLLAMA_MODEL` | `llama3.2` | Model used for summaries and LLM skill extraction |
-| `OLLAMA_TIMEOUT` | `60` | Seconds per Ollama request |
+| `OLLAMA_MODEL` | `gemma4:12b` | Any Ollama model, e.g. `qwen3:8b`, or a GGUF straight from Hugging Face: `hf.co/<org>/<repo>:<quant>` |
+| `OLLAMA_TIMEOUT` | `180` | Seconds per Ollama request |
+| `LLM_NUM_CTX` | `6144` | LLM context window in tokens (Ollama's default of 4096 can cut off long resumes) |
+| `LLM_CONCURRENCY` | `1` | Candidates assessed at once. On one GPU, 2 was only ~16% faster and doubles context memory |
+| `REDACT_PII` | `true` | Hide names, contact details, links, and location from the LLM |
 | `SCORING_WEIGHTS` | `{"semantic": 0.6, "skill_coverage": 0.3, "experience": 0.1}` | JSON; must sum to 1.0 |
 | `SEMANTIC_FLOOR` / `SEMANTIC_CEILING` | `0.45` / `0.85` | Cosine range rescaled onto 0–1; re-tune with `eval/` if you change models |
 | `CHUNK_WORDS` | `250` | Resume chunk size for embedding (`0` disables chunking) |
@@ -125,7 +138,9 @@ CandidateRecommender/
 │       ├── experience.py      # Years of experience from employment dates
 │       ├── text_cleaner.py    # Cleaning, skill registry, contact extraction
 │       ├── file_processor.py  # PDF / DOCX / TXT extraction
-│       ├── summarizer.py      # Ollama + template fit summaries
+│       ├── summarizer.py      # LLM assessments (+ template fallback)
+│       ├── llm.py             # Ollama client: structured JSON, availability, cache
+│       ├── redact.py          # Removes personal details before text reaches the LLM
 │       └── enricher.py        # GitHub + portfolio enrichment (SSRF-guarded)
 ├── frontend/                  # React + Vite + TypeScript UI
 ├── tests/                     # pytest suite
@@ -154,6 +169,8 @@ CI (GitHub Actions) runs backend lint and tests, frontend lint and build, the ra
 ## Limitations
 
 - **English, text-based resumes only.** Scanned PDFs have no extractable text (no OCR yet).
-- **Skill scoring uses a curated registry**, so skills outside it don't affect the score. With Ollama running, the displayed matching skills also include LLM-extracted ones.
+- **Skill scoring uses a curated registry**, so skills outside it don't affect the score. With Ollama running, the displayed matching skills also include LLM-reported ones that appear in the resume.
+- **The LLM needs memory.** `gemma4:12b` uses about 8GB. On a 16–18GB laptop with other apps open, macOS starts swapping and generation slows from ~16 to ~1–3 tokens a second. If that happens, close other apps or use a smaller model (`OLLAMA_MODEL=qwen3:8b`, ~5GB).
+- **The LLM doesn't affect the ranking.** Order and scores come from the embedding and skill scoring, and the assessment explains them. A candidate the LLM calls "No" can still rank highly, so read both.
 - **Enrichment makes outbound requests.** It fetches public GitHub profiles and portfolio pages linked in resumes. Only public addresses are allowed (private, loopback, and cloud-metadata IPs are blocked), and LinkedIn and other social sites are skipped.
 - **Screening support, not a decision-maker.** Scores and summaries are aids for a human reviewer; automated hiring decisions carry legal and fairness obligations in many jurisdictions.

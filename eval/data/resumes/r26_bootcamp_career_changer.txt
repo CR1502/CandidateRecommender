@@ -1,5 +1,5 @@
 Tyler Morgan
-tyler.morgan@example.com | Raleigh, NC | github.com/tylermorgan
+tyler.morgan@example.com | Raleigh, NC | example.com/tyler-morgan
 
 Former marketing coordinator, now a junior frontend developer after completing a 16-week web development bootcamp.
 

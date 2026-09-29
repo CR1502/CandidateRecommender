@@ -1,5 +1,5 @@
 Hannah Cho
-hannah.cho@example.com | Portland, OR | hannahcho.dev
+hannah.cho@example.com | Portland, OR | example.com/hannah-cho
 
 Senior frontend engineer, 6 years of experience building React applications with a focus on design systems and accessibility.
 
