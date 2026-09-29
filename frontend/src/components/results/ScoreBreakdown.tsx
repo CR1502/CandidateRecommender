@@ -1,7 +1,7 @@
 /**
- * The three composite-score components as labelled bars. Replaces the WebGL
- * radar chart. A null component didn't apply to this job (e.g. the job lists
- * no recognisable skills) and is shown as "n/a".
+ * The three composite-score components as a ledger with bars. A null
+ * component didn't apply to this job (e.g. the job lists no recognisable
+ * skills) and is shown as "n/a".
  */
 interface Props {
   semantic: number
@@ -18,23 +18,24 @@ const ROWS = [
 
 export function ScoreBreakdown({ color, ...values }: Props) {
   return (
-    <dl className="space-y-2.5">
+    <dl className="space-y-3">
       {ROWS.map(({ key, label, weight }) => {
         const value = values[key]
         return (
           <div key={key}>
-            <div className="flex justify-between text-xs mb-1">
-              <dt className="text-slate-400">
-                {label} <span className="text-slate-600">· weight {weight}</span>
+            <div className="flex items-baseline text-sm">
+              <dt>
+                {label} <span className="font-mono text-[10px] text-ink-3">×{weight}</span>
               </dt>
-              <dd className="tabular-nums" style={{ color: value === null ? '#64748b' : color }}>
+              <span className="leader" aria-hidden />
+              <dd className="font-mono text-xs tabular-nums" style={{ color: value === null ? 'var(--ink-3)' : color }}>
                 {value === null ? 'n/a' : `${Math.round(value * 100)}%`}
               </dd>
             </div>
-            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: '#1e1e2e' }}>
+            <div className="mt-1 h-[3px] bg-paper-sunk">
               {value !== null && (
                 <div
-                  className="h-full rounded-full"
+                  className="h-full"
                   style={{ width: `${value * 100}%`, background: color, transition: 'width 0.6s ease-out' }}
                 />
               )}

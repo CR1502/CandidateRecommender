@@ -2,14 +2,89 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * "Dossier" theme: warm paper, ink, one vermilion accent. Category and
+ * recommendation colours are ink tones that read on paper, not neon.
+ */
+:root {
+  --paper: #eee7d8;
+  --paper-sunk: #e4dbc7;
+  --card: #f7f2e7;
+  --ink: #1c1a16;
+  --ink-2: #57514a;
+  --ink-3: #8a8277;
+  --rule: rgba(28, 26, 22, 0.16);
+  --accent: #d9401a;
+  --accent-ink: #fff6ee;
+  --accent-wash: rgba(217, 64, 26, 0.09);
+
+  --cat-perfect: #1e6b4e;
+  --cat-ideal: #4e7a2a;
+  --cat-good: #a0700c;
+  --cat-okay: #b8561e;
+  --cat-not: #9a2e28;
+
+  --grain-opacity: 0.5;
+  --grain-blend: multiply;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #15130f;
+    --paper-sunk: #0f0d0a;
+    --card: #1e1b16;
+    --ink: #ece4d3;
+    --ink-2: #b3a994;
+    --ink-3: #7f7666;
+    --rule: rgba(236, 228, 211, 0.14);
+    --accent: #f0643a;
+    --accent-ink: #1a0c06;
+    --accent-wash: rgba(240, 100, 58, 0.12);
+
+    --cat-perfect: #62c298;
+    --cat-ideal: #a2c46e;
+    --cat-good: #e2b04a;
+    --cat-okay: #ec8b53;
+    --cat-not: #e46a60;
+
+    --grain-opacity: 0.28;
+    --grain-blend: screen;
+  }
+}
+
 * { box-sizing: border-box; }
+
+html { background: var(--paper); }
 
 body {
   margin: 0;
-  background: #0a0a0f;
-  color: #f1f5f9;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+  color: var(--ink);
+  font-family: 'Schibsted Grotesk', ui-sans-serif, sans-serif;
   -webkit-font-smoothing: antialiased;
+  background: var(--paper);
+}
+
+/* Soft vignette so the page reads as a sheet, not a flat fill */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 49;
+  background: radial-gradient(120% 90% at 50% 0%, transparent 60%, rgba(0, 0, 0, 0.07) 100%);
+}
+
+/* Paper grain */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 50;
+  opacity: var(--grain-opacity);
+  mix-blend-mode: var(--grain-blend);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .45 0 0 0 0 .4 0 0 0 .22 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 #root {
@@ -17,8 +92,44 @@ body {
   width: 100%;
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: #12121a; }
-::-webkit-scrollbar-thumb { background: #2d2d44; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #4f46e5; }
+::selection { background: var(--accent); color: var(--accent-ink); }
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@layer components {
+  /* Small uppercase mono labels: section numbers, field names, metadata */
+  .label {
+    @apply font-mono text-[10px] uppercase tracking-label text-ink-3;
+  }
+
+  /* Lined writing paper for the job description */
+  .ruled {
+    line-height: 28px;
+    background-image: linear-gradient(to bottom, transparent 27px, var(--rule) 27px);
+    background-size: 100% 28px;
+    background-attachment: local;
+  }
+
+  /* Rubber-stamp ink: speckled so it doesn't look like a flat pill */
+  .stamp-ink {
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='60'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.4 2.1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23s)'/%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='60'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.4' numOctaves='2'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 -2.4 2.1'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23s)'/%3E%3C/svg%3E");
+  }
+
+  /* Dotted leader between a ledger label and its value */
+  .leader {
+    flex: 1;
+    min-width: 1rem;
+    margin: 0 0.5rem;
+    border-bottom: 1px dotted var(--ink-3);
+    transform: translateY(-0.3em);
+  }
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }

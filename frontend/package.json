@@ -11,9 +11,7 @@
     "gen:api": "openapi-typescript src/api/openapi.json -o src/api/schema.d.ts"
   },
   "dependencies": {
-    "@react-three/fiber": "^9.5.0",
     "@tanstack/react-query": "^5.96.2",
-    "@types/three": "^0.183.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.7.0",
@@ -21,7 +19,6 @@
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.14.0",
     "tailwind-merge": "^3.5.0",
-    "three": "^0.183.2",
     "zustand": "^5.0.12"
   },
   "devDependencies": {

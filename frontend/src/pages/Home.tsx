@@ -1,8 +1,8 @@
-import { lazy, Suspense, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Loader2, AlertCircle, Search } from 'lucide-react'
+import { motion, AnimatePresence, type Variants } from 'framer-motion'
+import { ArrowRight, Loader2 } from 'lucide-react'
 import { useAppStore } from '../store/useAppStore'
 import { getErrorMessage, rankCandidates } from '../api/client'
 import { DropZone } from '../components/upload/DropZone'
@@ -10,7 +10,23 @@ import { FileList } from '../components/upload/FileList'
 import { RankProgressBar } from '../components/upload/RankProgressBar'
 import type { RankProgress } from '../types'
 
-const Background = lazy(() => import('../components/three/Background'))
+const MIN_JD_CHARS = 50
+
+// One orchestrated entrance: headline lines, then the two columns, then the action bar.
+const page: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.09, delayChildren: 0.05 } },
+}
+const rise: Variants = {
+  hidden: { opacity: 0, y: 18 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0.22, 1, 0.36, 1] } },
+}
+
+const WEIGHTS = [
+  ['Semantic match', '60'],
+  ['Skill coverage', '30'],
+  ['Experience', '10'],
+] as const
 
 export default function Home() {
   const navigate = useNavigate()
@@ -27,6 +43,7 @@ export default function Home() {
     onMutate: () => setProgress(null),
     onSuccess: (result) => {
       setResults(result)
+      window.scrollTo(0, 0)
       navigate('/results')
     },
   })
@@ -34,14 +51,15 @@ export default function Home() {
   const isLoading = rank.isPending
   const cancelled = rank.error instanceof Error && rank.error.name === 'AbortError'
   const error = validationError ?? (rank.isError && !cancelled ? getErrorMessage(rank.error) : null)
+  const jdLength = jobDescription.trim().length
 
   const handleSubmit = () => {
-    if (jobDescription.trim().length < 50) {
-      setValidationError('Job description must be at least 50 characters.')
+    if (jdLength < MIN_JD_CHARS) {
+      setValidationError(`The job description needs at least ${MIN_JD_CHARS} characters.`)
       return
     }
     if (files.length === 0) {
-      setValidationError('Please upload at least one resume file.')
+      setValidationError('Add at least one resume to the tray.')
       return
     }
     setValidationError(null)
@@ -49,127 +67,173 @@ export default function Home() {
   }
 
   return (
-    <div className="relative min-h-screen">
-      {/* Background 3D canvas */}
-      <div className="fixed inset-0" style={{ pointerEvents: 'none', zIndex: 0 }}>
-        <Suspense fallback={null}>
-          <Background fileCount={files.length} />
-        </Suspense>
-      </div>
-
-      {/* Content */}
-      <div className="relative z-10 min-h-screen flex flex-col">
-        {/* Header */}
-        <header className="text-center pt-14 pb-6 px-6">
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <h1
-              className="text-4xl md:text-5xl font-extrabold tracking-tight mb-2"
-              style={{
-                background: 'linear-gradient(135deg, #a5b4fc 0%, #6366f1 50%, #8b5cf6 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
-            >
-              Candidate Recommender
-            </h1>
-            <p className="text-slate-400 text-base max-w-md mx-auto">
-              Upload resumes and a job description — AI ranks candidates by composite fit score.
-            </p>
-          </motion.div>
-        </header>
-
-        {/* Main form */}
-        <main className="flex-1 px-6 pb-16 max-w-5xl mx-auto w-full">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.15 }}
-            className="grid md:grid-cols-2 gap-6"
-          >
-            {/* Left: Job description */}
-            <div className="flex flex-col gap-3">
-              <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-                <Search size={15} className="text-indigo-400" />
-                Job Description
-              </label>
-              <textarea
-                value={jobDescription}
-                onChange={e => setJobDescription(e.target.value)}
-                placeholder="Paste the full job description here… (min 50 characters)"
-                rows={14}
-                className="flex-1 w-full rounded-xl px-4 py-3 text-sm text-slate-200 placeholder-slate-600 resize-none focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
-                style={{ background: '#12121a', border: '1px solid #1e1e2e' }}
-                disabled={isLoading}
-              />
-              <span className="text-xs text-slate-600 text-right">
-                {jobDescription.length} chars
-              </span>
-            </div>
-
-            {/* Right: Upload + action */}
-            <div className="flex flex-col gap-4">
-              <div>
-                <label className="text-sm font-semibold text-slate-300 flex items-center gap-2 mb-3">
-                  Resumes
-                  <span className="text-xs font-normal text-slate-500">(PDF, DOCX, TXT)</span>
-                </label>
-                <DropZone />
-                <FileList />
-              </div>
-
-              <div className="mt-auto space-y-3">
-                <AnimatePresence>
-                  {error && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      className="flex items-start gap-2 text-sm text-red-400 rounded-lg px-3 py-2.5"
-                      style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)' }}
-                    >
-                      <AlertCircle size={15} className="mt-0.5 shrink-0" />
-                      {error}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                {isLoading && <RankProgressBar progress={progress} />}
-
-                <motion.button
-                  onClick={handleSubmit}
-                  disabled={isLoading}
-                  whileHover={{ scale: isLoading ? 1 : 1.02 }}
-                  whileTap={{ scale: isLoading ? 1 : 0.98 }}
-                  className="w-full py-3.5 rounded-xl font-semibold text-white flex items-center justify-center gap-2 transition-opacity disabled:opacity-60"
-                  style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}
+    <motion.main
+      variants={page}
+      initial="hidden"
+      animate="show"
+      className="mx-auto max-w-6xl px-4 sm:px-8 pb-20"
+    >
+      {/* Headline */}
+      <section className="grid gap-8 border-b border-ink py-10 md:grid-cols-[1fr_auto] md:py-14">
+        <div>
+          <motion.p variants={rise} className="label text-accent">Hiring desk · Shortlist</motion.p>
+          <h1 className="mt-4 font-display text-[clamp(2.75rem,8vw,6.25rem)] leading-[0.92] tracking-[-0.02em]">
+            <motion.span variants={rise} className="block">Who should you</motion.span>
+            <motion.span variants={rise} className="block">
+              interview <span className="relative whitespace-nowrap">
+                first?
+                <motion.svg
+                  viewBox="0 0 300 20"
+                  preserveAspectRatio="none"
+                  className="absolute -bottom-2 left-0 h-3 w-full text-accent"
+                  aria-hidden
                 >
-                  {isLoading ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      Analysing candidates…
-                    </>
-                  ) : (
-                    'Find Best Candidates'
-                  )}
-                </motion.button>
+                  <motion.path
+                    d="M3 14 C 60 4, 140 4, 297 10"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="5"
+                    strokeLinecap="round"
+                    initial={{ pathLength: 0 }}
+                    animate={{ pathLength: 1 }}
+                    transition={{ delay: 0.65, duration: 0.7, ease: 'easeInOut' }}
+                  />
+                </motion.svg>
+              </span>
+            </motion.span>
+          </h1>
+          <motion.p variants={rise} className="mt-7 max-w-xl text-lg leading-relaxed text-ink-2">
+            Paste the role and drop in the resumes. Every candidate is scored against the job
+            and, when a local model is running, given a written assessment.
+            <span className="text-ink"> You make the call.</span>
+          </motion.p>
+        </div>
 
-                {isLoading && (
-                  <button
-                    onClick={() => abort.current?.abort()}
-                    className="w-full text-xs text-slate-500 hover:text-slate-300 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                )}
+        {/* How the score is built */}
+        <motion.aside variants={rise} className="self-end md:w-64">
+          <p className="label mb-2 text-ink-2">How the score is weighed</p>
+          <dl className="border-t border-ink">
+            {WEIGHTS.map(([label, weight]) => (
+              <div key={label} className="flex items-baseline border-b border-rule py-2 text-sm">
+                <dt>{label}</dt>
+                <span className="leader" aria-hidden />
+                <dd className="font-mono text-xs tabular-nums">{weight}%</dd>
               </div>
+            ))}
+          </dl>
+          <p className="mt-2 text-xs leading-relaxed text-ink-3">
+            Parts that don't apply to a role are left out, not scored as zero.
+          </p>
+        </motion.aside>
+      </section>
+
+      {/* Form */}
+      <div className="grid md:grid-cols-2 md:divide-x md:divide-ink">
+        <motion.section variants={rise} className="py-8 md:pr-10">
+          <SectionHeading number="01" title="The role" />
+          <div className="border border-ink bg-card">
+            <label htmlFor="jd" className="sr-only">Job description</label>
+            <textarea
+              id="jd"
+              value={jobDescription}
+              onChange={e => setJobDescription(e.target.value)}
+              placeholder="Paste the full job description: responsibilities, requirements, nice-to-haves…"
+              rows={13}
+              disabled={isLoading}
+              className="ruled block w-full resize-y bg-transparent px-5 pt-1 text-[15px] text-ink placeholder:text-ink-3 focus:outline-none disabled:opacity-60"
+            />
+            <div className="flex items-center justify-between border-t border-rule px-5 py-2">
+              <span className="label">
+                {jdLength < MIN_JD_CHARS ? `${MIN_JD_CHARS - jdLength} more characters needed` : 'Ready'}
+              </span>
+              <span className="font-mono text-[11px] tabular-nums text-ink-3">{jobDescription.length} chars</span>
             </div>
-          </motion.div>
-        </main>
+          </div>
+        </motion.section>
+
+        <motion.section variants={rise} className="border-t border-ink py-8 md:border-t-0 md:pl-10">
+          <SectionHeading number="02" title="The applicants" />
+          <DropZone disabled={isLoading} />
+          <FileList disabled={isLoading} />
+        </motion.section>
       </div>
-    </div>
+
+      {/* Action bar */}
+      <motion.section variants={rise} className="border-t-[3px] border-ink pt-6">
+        <div className="grid items-start gap-6 md:grid-cols-[1fr_auto]">
+          <div className="min-h-[3rem]">
+            <SectionHeading number="03" title="Rank them" className="mb-2" />
+            <AnimatePresence mode="wait">
+              {error ? (
+                <motion.p
+                  key="error"
+                  role="alert"
+                  initial={{ opacity: 0, x: -6 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="border-l-[3px] border-accent pl-3 text-sm text-accent"
+                >
+                  {error}
+                </motion.p>
+              ) : (
+                <motion.p key="hint" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm text-ink-2">
+                  {files.length > 0
+                    ? `${files.length} resume${files.length === 1 ? '' : 's'} ready. The top 10 are returned with scores and notes.`
+                    : 'Resumes are processed on this machine. The only outside requests go to GitHub and portfolio links found in them.'}
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </div>
+
+          <div className="flex flex-col items-stretch gap-2 md:w-80">
+            <motion.button
+              onClick={handleSubmit}
+              disabled={isLoading}
+              whileTap={{ scale: isLoading ? 1 : 0.98 }}
+              className="group relative flex items-center justify-between gap-3 overflow-hidden bg-ink px-6 py-4 text-left text-paper transition-colors hover:bg-accent hover:text-accent-ink disabled:cursor-wait disabled:hover:bg-ink disabled:hover:text-paper"
+            >
+              <span className="font-display text-2xl leading-none">
+                {isLoading ? 'Reading…' : 'Rank candidates'}
+              </span>
+              {isLoading ? (
+                <Loader2 size={22} className="animate-spin" />
+              ) : (
+                <ArrowRight size={22} className="transition-transform group-hover:translate-x-1" />
+              )}
+            </motion.button>
+            {isLoading && (
+              <button
+                onClick={() => abort.current?.abort()}
+                className="label self-end py-1 hover:text-accent transition-colors"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </div>
+
+        <AnimatePresence>
+          {isLoading && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="mt-6 md:ml-auto md:w-[28rem]"
+            >
+              <RankProgressBar progress={progress} />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.section>
+    </motion.main>
+  )
+}
+
+function SectionHeading({ number, title, className = 'mb-4' }: { number: string; title: string; className?: string }) {
+  return (
+    <h2 className={`flex items-baseline gap-3 ${className}`}>
+      <span className="font-mono text-xs text-accent">{number}</span>
+      <span className="font-display text-2xl">{title}</span>
+    </h2>
   )
 }
